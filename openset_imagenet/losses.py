@@ -92,3 +92,21 @@ class EarlyStopping:
         else:
             self.best_score = score
             self.counter = 0
+
+# TODO
+class ASoftmaxLoss:
+    """A-Softmax loss from ShpereFace paper."""
+    def __init__(self, num_of_classes, unk_weight=1):
+        raise NotImplementedError
+
+    def __call__(self, logits, target):
+        raise NotImplementedError
+
+# TODO
+class LargeMarginCosineLoss:
+    """Large Margin Cosine Loss (LMCL) from CosFace paper."""
+    def __init__(self, num_of_classes, unk_weight=1):
+        raise NotImplementedError
+
+    def __call__(self, logits, target):
+        raise NotImplementedError
