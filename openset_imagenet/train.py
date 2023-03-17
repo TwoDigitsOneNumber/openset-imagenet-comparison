@@ -264,10 +264,13 @@ def worker(cfg):
         # number of classes when training with extra garbage class for unknowns, or when unknowns are removed
         n_classes = train_ds.label_count
 
+
+    FC_LAYER_DIM = n_classes
+
     if cfg.loss.type == "entropic":
         # We select entropic loss using the unknown class weights from the config file
         loss = EntropicOpensetLoss(n_classes, 
-                                   n_classes,
+                                   FC_LAYER_DIM,
                                    n_classes,
                                    unk_weight=cfg.loss.w)
     elif cfg.loss.type == "softmax":
@@ -280,7 +283,7 @@ def worker(cfg):
     # TODO: add other losses
 
     # Create the model
-    model = ResNet50(fc_layer_dim=n_classes)
+    model = ResNet50(fc_layer_dim=FC_LAYER_DIM)
     device(model)
 
     # Create optimizer
