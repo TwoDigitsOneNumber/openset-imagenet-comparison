@@ -264,7 +264,7 @@ def worker(cfg):
         # number of classes when training with extra garbage class for unknowns, or when unknowns are removed
         n_classes = train_ds.label_count
 
-
+    # size of deep feature layer
     FC_LAYER_DIM = n_classes
 
     if cfg.loss.type == "entropic":
