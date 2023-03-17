@@ -1,3 +1,9 @@
+*NOTE: this is a fork*
+
+- due to moving the logits from the ResNet50 model/class to the respective loss function (classes) the implementation with the proser network might be broken.
+
+
+
 # Open set on ImageNet
 Implementation of the experiments performed in Large-Scale Open-Set Classification Protocols for ImageNet, which has been accepted for publication in WACV 2023.
 You can find a [pre-print of the paper including our supplemental material on arXiv](https://arxiv.org/abs/2210.06789).

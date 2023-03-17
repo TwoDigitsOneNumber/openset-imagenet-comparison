@@ -11,13 +11,11 @@ import vast
 class ResNet50(nn.Module):
     """Represents a ResNet50 model"""
 
-    def __init__(self, fc_layer_dim=1000, logit_bias=True):
+    def __init__(self, fc_layer_dim=1000):
         """ Builds a ResNet model, with deep features and logits layers.
 
         Args:
             fc_layer_dim(int): Deep features dimension.
-            out_features(int): Logits dimension.
-            logit_bias(bool): True to use bias term in the logits layer.
         """
         super(ResNet50, self).__init__()
 

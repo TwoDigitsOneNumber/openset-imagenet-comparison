@@ -280,8 +280,7 @@ def worker(cfg):
     # TODO: add other losses
 
     # Create the model
-    model = ResNet50(fc_layer_dim=n_classes,
-                     logit_bias=False)
+    model = ResNet50(fc_layer_dim=n_classes)
     device(model)
 
     # Create optimizer
