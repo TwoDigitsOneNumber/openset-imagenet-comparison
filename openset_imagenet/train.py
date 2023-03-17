@@ -281,7 +281,6 @@ def worker(cfg):
 
     # Create the model
     model = ResNet50(fc_layer_dim=n_classes,
-                     out_features=n_classes,
                      logit_bias=False)
     device(model)
 
