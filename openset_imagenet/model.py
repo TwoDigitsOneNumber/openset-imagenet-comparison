@@ -29,11 +29,6 @@ class ResNet50(nn.Module):
         self.resnet_base.fc = nn.Linear(in_features=fc_in_features, out_features=fc_layer_dim)
 
 
-        self.logits = nn.Linear(
-            in_features=fc_layer_dim,
-            out_features=out_features,
-            bias=logit_bias)
-
 
 
     def forward(self, image):
@@ -46,8 +41,7 @@ class ResNet50(nn.Module):
             Logits and deep features of the samples.
         """
         features = self.resnet_base(image)
-        logits = self.logits(features)
-        return logits, features
+        return features
 
 
 class ResNet50Proser(nn.Module):

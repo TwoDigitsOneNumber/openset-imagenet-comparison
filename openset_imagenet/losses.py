@@ -8,20 +8,35 @@ import math
 
 class EntropicOpensetLoss:
     """ Taken from vast, modified to accept mini batches without positive examples."""
-    def __init__(self, num_of_classes, unk_weight=1):
+    def __init__(self, num_of_classes, fc_layer_dim, out_features, logit_bias=True, unk_weight=1):
+        """
+        args:
+            num_of_classes:
+            fc_layer_dim: dimensionality of features, i.e., size of deep feature layer
+            out_features: logits dimension
+            logit_bias(bool): True to use bias term in the logits layer.
+            unk_weight:
+        """
         self.class_count = num_of_classes
         self.eye = tools.device(torch.eye(self.class_count))
         self.unknowns_multiplier = unk_weight / self.class_count
         self.ones = tools.device(torch.ones(self.class_count)) * self.unknowns_multiplier
         self.cross_entropy = torch.nn.CrossEntropyLoss()
+        self.logit_layer = nn.Linear(
+            in_features=fc_layer_dim,
+            out_features=out_features,
+            bias=logit_bias)
 
-    def __call__(self, logits, target):
+
+    def __call__(self, features, targets):
+        logits = self.logit_layer(features)
+
         categorical_targets = tools.device(torch.zeros(logits.shape))
-        unk_idx = target < 0
+        unk_idx = targets < 0
         kn_idx = ~unk_idx
         # check if there is known samples in the batch
         if torch.any(kn_idx):
-            categorical_targets[kn_idx, :] = self.eye[target[kn_idx]]
+            categorical_targets[kn_idx, :] = self.eye[targets[kn_idx]]
 
         categorical_targets[unk_idx, :] = (
             self.ones.expand(
@@ -97,12 +112,11 @@ class EarlyStopping:
             self.counter = 0
 
 
-# from: https://github.com/ydwen/opensphere/blob/032c31b8918fb7639d3b34ac7433bfd537c6c518/model/head/arcface.py
-class ArcFace(nn.Module):
+# from: https://github.com/ydwen/opensphere/blob/032c31b8918fb7639d3b34ac7433bfd537c6c518/model/head/arcface.py but adapted
+class ArcFace:
     """ reference: <Additive Angular Margin Loss for Deep Face Recognition>
     """
     def __init__(self, feat_dim, num_class, s=64., m=0.5):
-        super(ArcFace, self).__init__()
         self.feat_dim = feat_dim
         self.num_class = num_class
         self.s = s
@@ -110,30 +124,30 @@ class ArcFace(nn.Module):
         self.w = nn.Parameter(torch.Tensor(feat_dim, num_class))
         nn.init.xavier_normal_(self.w)
 
-    def forward(self, x, y):
+    def __call__(self, features, targets):
+        """computes logits and loss"""
         with torch.no_grad():
             self.w.data = F.normalize(self.w.data, dim=0)
 
-        cos_theta = F.normalize(x, dim=1).mm(self.w)
+        cos_theta = F.normalize(features, dim=1).mm(self.w)
         with torch.no_grad():
             theta_m = torch.acos(cos_theta.clamp(-1+1e-5, 1-1e-5))
-            theta_m.scatter_(1, y.view(-1, 1), self.m, reduce='add')
+            theta_m.scatter_(1, targets.view(-1, 1), self.m, reduce='add')
             theta_m.clamp_(1e-5, 3.14159)
             d_theta = torch.cos(theta_m) - cos_theta
 
         logits = self.s * (cos_theta + d_theta)
-        loss = F.cross_entropy(logits, y)
+        loss = F.cross_entropy(logits, targets)
 
         return loss
 
 
-# from: https://github.com/ydwen/opensphere/blob/032c31b8918fb7639d3b34ac7433bfd537c6c518/model/head/cosface.py
-class CosFace(nn.Module):
+# from: https://github.com/ydwen/opensphere/blob/032c31b8918fb7639d3b34ac7433bfd537c6c518/model/head/cosface.py but adapted
+class CosFace:
     """reference1: <CosFace: Large Margin Cosine Loss for Deep Face Recognition>
        reference2: <Additive Margin Softmax for Face Verification>
     """
     def __init__(self, feat_dim, num_class, s=64., m=0.35):
-        super(CosFace, self).__init__()
         self.feat_dim = feat_dim
         self.num_class = num_class
         self.s = s
@@ -141,29 +155,29 @@ class CosFace(nn.Module):
         self.w = nn.Parameter(torch.Tensor(feat_dim, num_class))
         nn.init.xavier_normal_(self.w)
 
-    def forward(self, x, y):
+    def __call__(self, features, targets):
+        """computes logits and loss"""
         with torch.no_grad():
             self.w.data = F.normalize(self.w.data, dim=0)
 
-        cos_theta = F.normalize(x, dim=1).mm(self.w)
+        cos_theta = F.normalize(features, dim=1).mm(self.w)
         with torch.no_grad():
             d_theta = torch.zeros_like(cos_theta)
-            d_theta.scatter_(1, y.view(-1, 1), -self.m, reduce='add')
+            d_theta.scatter_(1, targets.view(-1, 1), -self.m, reduce='add')
 
         logits = self.s * (cos_theta + d_theta)
-        loss = F.cross_entropy(logits, y)
+        loss = F.cross_entropy(logits, targets)
 
         return loss
 
 
-# from: https://github.com/ydwen/opensphere/blob/032c31b8918fb7639d3b34ac7433bfd537c6c518/model/head/sphereface.py
-class SphereFace(nn.Module):
+# from: https://github.com/ydwen/opensphere/blob/032c31b8918fb7639d3b34ac7433bfd537c6c518/model/head/sphereface.py but adapted
+class SphereFace:
     """ reference: <SphereFace: Deep Hypersphere Embedding for Face Recognition>"
         It also used characteristic gradient detachment tricks proposed in
         <SphereFace Revived: Unifying Hyperspherical Face Recognition>.
     """
     def __init__(self, feat_dim, num_class, s=30., m=1.5):
-        super(SphereFace, self).__init__()
         self.feat_dim = feat_dim
         self.num_class = num_class
         self.s = s
@@ -171,17 +185,18 @@ class SphereFace(nn.Module):
         self.w = nn.Parameter(torch.Tensor(feat_dim, num_class))
         nn.init.xavier_normal_(self.w)
 
-    def forward(self, x, y):
+    def __call__(self, features, targets):
+        """computes logits and loss"""
         # weight normalization
         with torch.no_grad():
             self.w.data = F.normalize(self.w.data, dim=0)
 
         # cos_theta and d_theta
-        cos_theta = F.normalize(x, dim=1).mm(self.w)
+        cos_theta = F.normalize(features, dim=1).mm(self.w)
         with torch.no_grad():
             m_theta = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
             m_theta.scatter_(
-                1, y.view(-1, 1), self.m, reduce='multiply',
+                1, targets.view(-1, 1), self.m, reduce='multiply',
             )
             k = (m_theta / math.pi).floor()
             sign = -2 * torch.remainder(k, 2) + 1  # (-1)**k
@@ -189,7 +204,7 @@ class SphereFace(nn.Module):
             d_theta = phi_theta - cos_theta
 
         logits = self.s * (cos_theta + d_theta)
-        loss = F.cross_entropy(logits, y)
+        loss = F.cross_entropy(logits, targets)
 
         return loss
 

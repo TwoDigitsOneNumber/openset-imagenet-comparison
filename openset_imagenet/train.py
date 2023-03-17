@@ -266,7 +266,10 @@ def worker(cfg):
 
     if cfg.loss.type == "entropic":
         # We select entropic loss using the unknown class weights from the config file
-        loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
+        loss = EntropicOpensetLoss(n_classes, 
+                                   n_classes,
+                                   n_classes,
+                                   unk_weight=cfg.loss.w)
     elif cfg.loss.type == "softmax":
         # We need to ignore the index only for validation loss computation
         loss = torch.nn.CrossEntropyLoss(ignore_index=-1)
@@ -274,6 +277,7 @@ def worker(cfg):
         # We use balanced class weights
         class_weights = device(train_ds.calculate_class_weights())
         loss = torch.nn.CrossEntropyLoss(weight=class_weights)
+    # TODO: add other losses
 
     # Create the model
     model = ResNet50(fc_layer_dim=n_classes,
