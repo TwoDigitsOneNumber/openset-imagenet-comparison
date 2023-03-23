@@ -37,6 +37,7 @@ def get_args():
     parser.add_argument(
         "--loss-functions", "-l",
         nargs = "+",
+        # TODO laurin: add loss functions
         choices = ('softmax', 'garbage', 'entropic'),
         default = ('softmax', 'garbage', 'entropic'),
         help = "Select the loss functions that should be evaluated"
@@ -45,6 +46,7 @@ def get_args():
     parser.add_argument(
         "--algs", "-a",
         nargs = "+",
+        # TODO laurin: add loss functions
         choices = ('softmax', 'garbage', 'entropic', 'openmax'),
         help = "Select the algorithm that should be evaluated"
     )

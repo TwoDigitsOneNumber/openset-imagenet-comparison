@@ -43,7 +43,35 @@ class EntropicOpensetLoss:
                 torch.sum(unk_idx).item(), self.class_count
             )
         )
-        return self.cross_entropy(logits, categorical_targets)
+        return logits, self.cross_entropy(logits, categorical_targets)
+
+
+class Softmax:
+    """softmax activation and categorical cross entropy loss."""
+    def __init__(self, fc_layer_dim, out_features, logit_bias) -> None:
+        self.logit_layer = tools.device(nn.Linear(
+            in_features=fc_layer_dim,
+            out_features=out_features,
+            bias=logit_bias))
+        self.cross_entropy = torch.nn.CrossEntropyLoss(ignore_index=-1)
+        
+        
+    def __call__(self, features, targets):
+        logits = self.logit_layer(features)
+        return logits, self.cross_entropy(logits, targets)
+
+
+class Garbage:
+    def __init__(self, fc_layer_dim, out_features, logit_bias, class_weights) -> None:
+        self.logit_layer = tools.device(nn.Linear(
+            in_features=fc_layer_dim,
+            out_features=out_features,
+            bias=logit_bias))
+        self.cross_entropy = torch.nn.CrossEntropyLoss(weight=class_weights)
+
+    def __call__(self, features, targets):
+        logits = self.logit_layer(features)
+        return logits, self.cross_entropy(logits, targets)
 
 
 
@@ -117,6 +145,7 @@ class ArcFace:
     """ reference: <Additive Angular Margin Loss for Deep Face Recognition>
     """
     def __init__(self, feat_dim, num_class, s=64., m=0.5):
+        # TODO laurin: make sure all data structures are on device (tools.device())
         self.feat_dim = feat_dim
         self.num_class = num_class
         self.s = s
@@ -139,7 +168,7 @@ class ArcFace:
         logits = self.s * (cos_theta + d_theta)
         loss = F.cross_entropy(logits, targets)
 
-        return loss
+        return logits, loss
 
 
 # from: https://github.com/ydwen/opensphere/blob/032c31b8918fb7639d3b34ac7433bfd537c6c518/model/head/cosface.py but adapted
@@ -148,6 +177,7 @@ class CosFace:
        reference2: <Additive Margin Softmax for Face Verification>
     """
     def __init__(self, feat_dim, num_class, s=64., m=0.35):
+        # TODO laurin: make sure all data structures are on device (tools.device())
         self.feat_dim = feat_dim
         self.num_class = num_class
         self.s = s
@@ -168,7 +198,7 @@ class CosFace:
         logits = self.s * (cos_theta + d_theta)
         loss = F.cross_entropy(logits, targets)
 
-        return loss
+        return logits, loss
 
 
 # from: https://github.com/ydwen/opensphere/blob/032c31b8918fb7639d3b34ac7433bfd537c6c518/model/head/sphereface.py but adapted
@@ -178,6 +208,7 @@ class SphereFace:
         <SphereFace Revived: Unifying Hyperspherical Face Recognition>.
     """
     def __init__(self, feat_dim, num_class, s=30., m=1.5):
+        # TODO laurin: make sure all data structures are on device (tools.device())
         self.feat_dim = feat_dim
         self.num_class = num_class
         self.s = s
@@ -206,7 +237,7 @@ class SphereFace:
         logits = self.s * (cos_theta + d_theta)
         loss = F.cross_entropy(logits, targets)
 
-        return loss
+        return logits, loss
 
 
 

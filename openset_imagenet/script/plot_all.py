@@ -41,12 +41,14 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
         "--losses", "-l",
         nargs = "+",
+        # TODO laurin: add loss functions
         choices = ('softmax', 'garbage', 'entropic'),
         default = ('softmax', 'garbage', 'entropic'),
         help = "Select the loss functions that should be included into the plot"
     )
     parser.add_argument(
         "--algorithms", "-a",
+        # TODO laurin: add loss functions
         choices = ["threshold", "openmax", "evm", "proser", "maxlogits"],
         nargs = "+",
         default = ["threshold", "openmax", "evm", "proser", "maxlogits"],

@@ -35,6 +35,7 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
       "--loss-functions", "-l",
       nargs = "+",
+      # TODO laurin: add loss functions
       choices = ('entropic', 'softmax', 'garbage'),
       default = ('entropic', 'softmax', 'garbage'),
       help = "Select the loss functions that should be evaluated"

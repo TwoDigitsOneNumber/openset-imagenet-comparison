@@ -16,7 +16,7 @@ from loguru import logger
 from .metrics import confidence, auc_score_binary, auc_score_multiclass
 from .dataset import ImagenetDataset
 from .model import ResNet50, load_checkpoint, save_checkpoint, set_seeds
-from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss
+from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, ArcFace, CosFace, SphereFace, Softmax, Garbage
 import tqdm
 
 
@@ -30,6 +30,7 @@ def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
         loss_fn: Loss function
         trackers: Dictionary of trackers
         cfg: General configuration structure
+        epoch: int, denoting the epoch
     """
     # Reset dictionary of training metrics
     for metric in trackers.values():
@@ -38,8 +39,8 @@ def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
     j = None
 
     # training loop
-    if not cfg.parallel:
-        data_loader = tqdm.tqdm(data_loader)
+    # if not cfg.parallel:
+    #     data_loader = tqdm.tqdm(data_loader, desc='epoch')
     for images, labels in data_loader:
         model.train()  # To collect batch-norm statistics
         batch_len = labels.shape[0]  # Samples in current batch
@@ -48,10 +49,10 @@ def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
         labels = device(labels)
 
         # Forward pass
-        logits, features = model(images)
+        features = model(images)
 
         # Calculate loss
-        j = loss_fn(logits, labels)
+        _, j = loss_fn(features, labels)
         trackers["j"].update(j.item(), batch_len)
         # Backward pass
         j.backward()
@@ -72,6 +73,7 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
     for metric in trackers.values():
         metric.reset()
 
+    # TODO laurin: test if still needed/working
     if cfg.loss.type == "garbage":
         min_unk_score = 0.
         unknown_class = n_classes - 1
@@ -92,10 +94,12 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
             batch_len = labels.shape[0]  # current batch size, last batch has different value
             images = device(images)
             labels = device(labels)
-            logits, features = model(images)
+            # TODO laurin: adapt to features
+            features = model(images)
+            logits, _ = loss_fn(features, labels)
             scores = torch.nn.functional.softmax(logits, dim=1)
 
-            j = loss_fn(logits, labels)
+            _, j = loss_fn(logits, labels)
             trackers["j"].update(j.item(), batch_len)
 
             # accumulate partial results in empty tensors
@@ -272,15 +276,30 @@ def worker(cfg):
         loss = EntropicOpensetLoss(n_classes, 
                                    FC_LAYER_DIM,
                                    n_classes,
+                                   logit_bias=True,
                                    unk_weight=cfg.loss.w)
     elif cfg.loss.type == "softmax":
         # We need to ignore the index only for validation loss computation
-        loss = torch.nn.CrossEntropyLoss(ignore_index=-1)
+        loss = Softmax(FC_LAYER_DIM,
+                       n_classes,
+                       logit_bias=True)
     elif cfg.loss.type == "garbage":
         # We use balanced class weights
         class_weights = device(train_ds.calculate_class_weights())
-        loss = torch.nn.CrossEntropyLoss(weight=class_weights)
-    # TODO: add other losses
+        loss = Garbage(FC_LAYER_DIM,
+                       n_classes,
+                       logit_bias=True,
+                       class_weights=class_weights)
+    elif cfg.loss.type == "sphereface":
+        loss = SphereFace(FC_LAYER_DIM,
+                          n_classes)
+    elif cfg.loss.type == "arcface":
+        loss = ArcFace(FC_LAYER_DIM,
+                       n_classes)
+    elif cfg.loss.type == "cosface":
+        loss = CosFace(FC_LAYER_DIM,
+                       n_classes)
+    # TODO laurin: add magface loss
 
     # Create the model
     model = ResNet50(fc_layer_dim=FC_LAYER_DIM)
@@ -333,8 +352,11 @@ def worker(cfg):
     logger.info("Training...")
     writer = SummaryWriter(log_dir=cfg.output_directory, filename_suffix="-"+cfg.log_name)
 
-    for epoch in range(START_EPOCH, cfg.epochs):
+    progress_bar = tqdm.tqdm(range(START_EPOCH, cfg.epochs), desc='epoch')
+
+    for epoch in progress_bar:
         epoch_time = time.time()
+        progress_bar.set_description(f'epoch {epoch+1}, training')
 
         # training loop
         train(
@@ -347,6 +369,7 @@ def worker(cfg):
 
         train_time = time.time() - epoch_time
 
+        progress_bar.set_description(f'epoch {epoch+1}, validating')
         # validation loop
         validate(
             model=model,
@@ -386,6 +409,7 @@ def worker(cfg):
             f"v:{val_time:.1f}s")
 
         # save best model and current model
+        progress_bar.set_description(f'epoch {epoch+1}, saving')
         ckpt_name = cfg.model_path.format(cfg.output_directory, cfg.loss.type, "threshold", "curr")
         save_checkpoint(ckpt_name, model, epoch, opt, curr_score, scheduler=scheduler)
 

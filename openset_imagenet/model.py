@@ -25,8 +25,6 @@ class ResNet50(nn.Module):
         self.resnet_base.fc = nn.Linear(in_features=fc_in_features, out_features=fc_layer_dim)
 
 
-
-
     def forward(self, image):
         """ Forward pass
 
@@ -34,7 +32,7 @@ class ResNet50(nn.Module):
             image(tensor): Tensor with input samples
 
         Returns:
-            Logits and deep features of the samples.
+            Deep features of the samples.
         """
         features = self.resnet_base(image)
         return features

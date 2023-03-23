@@ -1,7 +1,20 @@
-*NOTE: this is a fork*
+__*NOTE: this is a fork*__
 
-- due to moving the logits from the ResNet50 model/class to the respective loss function (classes) the implementation with the proser network might be broken.
+- due to moving the computation of the logits from the ResNet50 model/class to the respective loss function (classes) the implementation with the proser network might be broken. losses now take `features` as input rather than `logits` (see `train.py > train()`).
+- loss functions now return logits in addition to the loss
 
+
+# Notes on Fork (for master's thesis)
+
+Todo:
+- [ ] implement losses and config files
+    - [ ] shpereface
+    - [ ] arcface
+    - [ ] cosface
+    - [ ] magface
+- [ ] test all losses (see if they run properly)
+    - [ ] test if garbage class is not broken
+- [ ] write training script for experiment
 
 
 # Open set on ImageNet
