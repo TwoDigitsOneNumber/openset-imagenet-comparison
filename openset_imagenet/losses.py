@@ -4,11 +4,34 @@ import torch.nn as nn
 import torch.nn.functional as F
 from vast import tools
 import math
+import abc
+
+# class LossInterface(metaclass=abc.ABCMeta):
+#     @abc.abstractmethod
+#     def __init__(self, num_of_classes, fc_layer_dim, out_features, logit_bias):
+#         """
+#         args:
+#             num_of_classes:
+#             fc_layer_dim: dimensionality of features, i.e., size of deep feature layer
+#             out_features: logits dimension
+#             logit_bias(bool): True to use bias term in the logits layer.
+#         """
+#         raise NotImplementedError
+
+#     @abc.abstractmethod
+#     def __call__(self, features, targets):
+#         """
+#         returns tuple (logits, loss), 
+
+#         where logits is the last layer before the final activation/loss (torch.nn.Linear), and loss is the value (float).
+#         """
+#         raise NotImplementedError
+
 
 
 class EntropicOpensetLoss:
     """ Taken from vast, modified to accept mini batches without positive examples."""
-    def __init__(self, num_of_classes, fc_layer_dim, out_features, logit_bias=True, unk_weight=1):
+    def __init__(self, num_of_classes, fc_layer_dim, out_features, logit_bias=False, unk_weight=1):
         """
         args:
             num_of_classes:
