@@ -90,7 +90,7 @@ class ImagenetDataset(Dataset):
         Returns:
             class_weights: Tensor with weight for every class.
         """
-        # TODO: Should it be part of dataset class?
+        # TODO (not laurin): Should it be part of dataset class?
         counts = self.dataset.groupby(1).count().to_numpy()
         class_weights = (len(self.dataset) / (counts * self.label_count))
         return torch.from_numpy(class_weights).float().squeeze()

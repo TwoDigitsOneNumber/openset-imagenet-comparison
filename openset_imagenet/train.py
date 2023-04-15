@@ -48,7 +48,7 @@ def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
         labels = device(labels)
 
         # Forward pass
-        logits, features = model(images)
+        logits, features = model(images, labels)
 
         # Calculate loss
         j = loss_fn(logits, labels)
@@ -92,7 +92,7 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
             batch_len = labels.shape[0]  # current batch size, last batch has different value
             images = device(images)
             labels = device(labels)
-            logits, features = model(images)
+            logits, features = model(images, None)
             scores = torch.nn.functional.softmax(logits, dim=1)
 
             j = loss_fn(logits, labels)
@@ -126,6 +126,7 @@ def get_arrays(model, loader, garbage, pretty=False):
     model.eval()
     with torch.no_grad():
         data_len = len(loader.dataset)         # dataset length
+        # TODO: following two lines are potential causes for error
         logits_dim = model.logits.out_features  # logits output classes
         if garbage:
             logits_dim -= 1
@@ -142,7 +143,7 @@ def get_arrays(model, loader, garbage, pretty=False):
             curr_b_size = labels.shape[0]  # current batch size, very last batch has different value
             images = device(images)
             labels = device(labels)
-            logits, feature = model(images)
+            logits, feature = model(images, None)
             # compute softmax scores
             scores = torch.nn.functional.softmax(logits, dim=1)
             # shall we remove the logits of the unknown class?
@@ -267,7 +268,7 @@ def worker(cfg):
     if cfg.loss.type == "entropic":
         # We select entropic loss using the unknown class weights from the config file
         loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
-    elif cfg.loss.type == "softmax":
+    elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface"]:
         # We need to ignore the index only for validation loss computation
         loss = torch.nn.CrossEntropyLoss(ignore_index=-1)
     elif cfg.loss.type == "garbage":
@@ -275,10 +276,17 @@ def worker(cfg):
         class_weights = device(train_ds.calculate_class_weights())
         loss = torch.nn.CrossEntropyLoss(weight=class_weights)
 
+    if cfg.loss.type in ["sphereface", "cosface", "arcface", "magface"]:
+        logit_variant = cfg.loss.type
+    else:
+        logit_variant = 'linear'
+
+
     # Create the model
     model = ResNet50(fc_layer_dim=n_classes,
                      out_features=n_classes,
-                     logit_bias=False)
+                     logit_bias=False,
+                     logit_variant=logit_variant)
     device(model)
 
     # Create optimizer

@@ -7,17 +7,19 @@ import random
 import numpy as np
 import pathlib
 import vast
+from logits_variants import Linear, SphereFace, CosFace, ArcFace
 
 class ResNet50(nn.Module):
     """Represents a ResNet50 model"""
 
-    def __init__(self, fc_layer_dim=1000, out_features=1000, logit_bias=True):
+    def __init__(self, fc_layer_dim=1000, out_features=1000, logit_bias=True, logit_variant='linear'):
         """ Builds a ResNet model, with deep features and logits layers.
 
         Args:
             fc_layer_dim(int): Deep features dimension.
             out_features(int): Logits dimension.
             logit_bias(bool): True to use bias term in the logits layer.
+            logit_variant(str): type of logits to compute {linear, sphereface, cosface, arcface, magface}.
         """
         super(ResNet50, self).__init__()
 
@@ -29,24 +31,46 @@ class ResNet50(nn.Module):
         self.resnet_base.fc = nn.Linear(in_features=fc_in_features, out_features=fc_layer_dim)
 
 
-        self.logits = nn.Linear(
-            in_features=fc_layer_dim,
-            out_features=out_features,
-            bias=logit_bias)
+        if logit_variant == 'linear':
+            self.logits = Linear(
+                in_features=fc_layer_dim,
+                out_features=out_features,
+                bias=logit_bias)
+        elif logit_variant == 'sphereface':
+            self.logits = SphereFace(
+                in_features=fc_layer_dim,
+                out_features=out_features,
+                bias=logit_bias)
+        elif logit_variant == 'cosface':
+            self.logits = CosFace(
+                in_features=fc_layer_dim,
+                out_features=out_features,
+                bias=logit_bias)
+        elif logit_variant == 'arcface':
+            self.logits = ArcFace(
+                in_features=fc_layer_dim,
+                out_features=out_features,
+                bias=logit_bias)
+        elif logit_variant == 'magface':
+            # TODO
+            raise NotImplementedError
+        else:
+            raise ValueError('Invalid input specified! logit_variant must be one of: "linear", "sphereface", "cosface", "arcface", "magface".')
 
 
 
-    def forward(self, image):
+    def forward(self, image, labels):
         """ Forward pass
 
         Args:
             image(tensor): Tensor with input samples
+            labels(tensor): Labels for the input samples (needed for margin computation in 'face losses')
 
         Returns:
             Logits and deep features of the samples.
         """
         features = self.resnet_base(image)
-        logits = self.logits(features)
+        logits = self.logits(features, labels)
         return logits, features
 
 
