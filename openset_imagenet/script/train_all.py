@@ -35,8 +35,8 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
       "--loss-functions", "-l",
       nargs = "+",
-      choices = ('entropic', 'softmax', 'garbage'),
-      default = ('entropic', 'softmax', 'garbage'),
+      choices = ('entropic', 'softmax', 'garbage', 'sphereface', 'cosface', 'arcface', 'magface'),
+      default = ('entropic', 'softmax', 'garbage', 'sphereface', 'cosface', 'arcface', 'magface'),
       help = "Select the loss functions that should be evaluated"
       )
 

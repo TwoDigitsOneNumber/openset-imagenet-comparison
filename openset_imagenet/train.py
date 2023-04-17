@@ -126,7 +126,6 @@ def get_arrays(model, loader, garbage, pretty=False):
     model.eval()
     with torch.no_grad():
         data_len = len(loader.dataset)         # dataset length
-        # TODO: following two lines are potential causes for error
         logits_dim = model.logits.out_features  # logits output classes
         if garbage:
             logits_dim -= 1
@@ -220,7 +219,7 @@ def worker(cfg):
             # Only change the unknown label of the training dataset
             train_ds.replace_negative_label()
             val_ds.replace_negative_label()
-        elif cfg.loss.type == "softmax":
+        elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface", "magface"]:
             # remove the negative label from softmax training set, not from val set!
             train_ds.remove_negative_label()
     else:
@@ -258,17 +257,18 @@ def worker(cfg):
 
     # set loss
     loss = None
-    if cfg.loss.type == "entropic":
+    if cfg.loss.type in ["entropic"]:
         # number of classes - 1 since we have no label for unknown
         n_classes = train_ds.label_count - 1
     else:
-        # number of classes when training with extra garbage class for unknowns, or when unknowns are removed
+        # number of classes when training with extra garbage class for unknowns, or when unknowns were removed (see above train_ds.remove_negative_label())
         n_classes = train_ds.label_count
-
+    
+    # select loss function
     if cfg.loss.type == "entropic":
         # We select entropic loss using the unknown class weights from the config file
         loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
-    elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface"]:
+    elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface", "magface"]:
         # We need to ignore the index only for validation loss computation
         loss = torch.nn.CrossEntropyLoss(ignore_index=-1)
     elif cfg.loss.type == "garbage":
@@ -276,6 +276,7 @@ def worker(cfg):
         class_weights = device(train_ds.calculate_class_weights())
         loss = torch.nn.CrossEntropyLoss(weight=class_weights)
 
+    # select logit variant (should be specified vie command line arguments for the loss functions)
     if cfg.loss.type in ["sphereface", "cosface", "arcface", "magface"]:
         logit_variant = cfg.loss.type
     else:
@@ -321,19 +322,23 @@ def worker(cfg):
     # Print info to console and setup summary writer
 
     # Info on console
-    logger.info("============ Data ============")
-    logger.info(f"train_len:{len(train_ds)}, labels:{train_ds.label_count}")
-    logger.info(f"val_len:{len(val_ds)}, labels:{val_ds.label_count}")
-    logger.info("========== Training ==========")
-    logger.info(f"Initial epoch: {START_EPOCH}")
-    logger.info(f"Last epoch: {cfg.epochs}")
-    logger.info(f"Batch size: {cfg.batch_size}")
-    logger.info(f"workers: {cfg.workers}")
-    logger.info(f"Loss: {cfg.loss.type}")
-    logger.info(f"optimizer: {cfg.opt.type}")
-    logger.info(f"Learning rate: {cfg.opt.lr}")
-    logger.info(f"Device: {cfg.gpu}")
-    logger.info("Training...")
+    log_info = f"""
+    ============ Data ============
+    train_len:{len(train_ds)}, labels:{train_ds.label_count}
+    val_len:{len(val_ds)}, labels:{val_ds.label_count}
+    ========== Training ==========
+    Initial epoch: {START_EPOCH}
+    Last epoch: {cfg.epochs}
+    Batch size: {cfg.batch_size}
+    Workers: {cfg.workers}
+    Loss: {cfg.loss.type}
+    Optimizer: {cfg.opt.type}
+    Learning rate: {cfg.opt.lr}
+    Device: {cfg.gpu}
+    Protocol: {cfg.protocol}
+    Training...
+    """
+    logger.info(log_info)
     writer = SummaryWriter(log_dir=cfg.output_directory, filename_suffix="-"+cfg.log_name)
 
     for epoch in range(START_EPOCH, cfg.epochs):

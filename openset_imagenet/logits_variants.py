@@ -6,15 +6,22 @@ import math
 
 class Linear(nn.Module):
     """Wrapper for compatibility of second argument of forward function."""
-    def __init__(self, fc_layer_dim, out_features, logit_bias):
+    def __init__(self, in_features, out_features, logit_bias):
         super().__init__()
-        self.logits = nn.Linear(
-            in_features=fc_layer_dim,
-            out_features=out_features,
-            bias=logit_bias)
+        self.in_features = in_features
+        self.out_features = out_features
+        # self.logit_bias = logit_bias
+
+        self.w = nn.Parameter(torch.Tensor(in_features, out_features))
+        nn.init.xavier_normal_(self.w)
+        # self.logits = nn.Linear(
+        #     in_features=self.in_features,
+        #     out_features=self.out_features,
+        #     bias=self.logit_bias)
 
     def forward(self, features, labels):
-        return self.logits(features)
+        logits = features.mm(self.w)
+        return logits
 
 
 class SphereFace(nn.Module):
@@ -23,14 +30,14 @@ class SphereFace(nn.Module):
        It also used characteristic gradient detachment tricks proposed in
        <SphereFace Revived: Unifying Hyperspherical Face Recognition>.
     """
-    def __init__(self, fc_layer_dim, out_features, bias, s=30., m=1.5):
-        """bias argument soley for compatibility."""
+    def __init__(self, in_features, out_features, logit_bias, s=30., m=1.5):
+        """logit_bias argument soley for compatibility."""
         super().__init__()
-        self.feat_dim = fc_layer_dim
-        self.num_class = out_features
+        self.in_features = in_features
+        self.out_features = out_features
         self.s = s
         self.m = m
-        self.w = nn.Parameter(torch.Tensor(fc_layer_dim, out_features))
+        self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
 
     def forward(self, features, labels):
@@ -47,7 +54,10 @@ class SphereFace(nn.Module):
                 # this way avoids rewriting scatter_ without the use of label.
                 d_theta = torch.zeros_like(cos_theta)
             else:
-                m_theta.scatter_(1, labels.view(-1, 1), self.m, reduce='multiply')
+                # get boolean mask of known labels (to apply below transformations only on known inputs)
+                kn_idx = labels >= 0
+        
+                m_theta[kn_idx,:] = m_theta[kn_idx,:].scatter(1, labels[kn_idx].view(-1, 1), self.m, reduce='multiply')
                 k = (m_theta / math.pi).floor()
                 sign = -2 * torch.remainder(k, 2) + 1  # (-1)**k
                 phi_theta = sign * torch.cos(m_theta) - 2. * k
@@ -66,14 +76,14 @@ class CosFace(nn.Module):
         reference1: <CosFace: Large Margin Cosine Loss for Deep Face Recognition>
         reference2: <Additive Margin Softmax for Face Verification>
     """
-    def __init__(self, fc_layer_dim, out_features, bias, s=64., m=0.35):
-        """bias argument soley for compatibility."""
+    def __init__(self, in_features, out_features, logit_bias, s=64., m=0.35):
+        """logit_bias argument soley for compatibility."""
         super().__init__()
-        self.feat_dim = fc_layer_dim
-        self.num_class = out_features
+        self.in_features = in_features
+        self.out_features = out_features
         self.s = s
         self.m = m
-        self.w = nn.Parameter(torch.Tensor(fc_layer_dim, out_features))
+        self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
 
     def forward(self, features, labels):
@@ -84,7 +94,10 @@ class CosFace(nn.Module):
         with torch.no_grad():
             d_theta = torch.zeros_like(cos_theta)
             if labels is not None:  # training time forward pass
-                d_theta.scatter_(1, labels.view(-1, 1), -self.m, reduce='add')
+                # get boolean mask of known labels (to apply below transformations only on known inputs)
+                kn_idx = labels >= 0
+        
+                d_theta[kn_idx,:] = d_theta[kn_idx,:].scatter_(1, labels[kn_idx].view(-1, 1), -self.m, reduce='add')
 
         logits = self.s * (cos_theta + d_theta)
         return logits
@@ -95,14 +108,14 @@ class ArcFace(nn.Module):
         Taken from https://github.com/ydwen/opensphere/blob/main/model/head/arcface.py and adapted.
         reference: <Additive Angular Margin Loss for Deep Face Recognition>
     """
-    def __init__(self, fc_layer_dim, out_features, bias, s=64., m=0.5):
-        """bias argument soley for compatibility."""
+    def __init__(self, in_features, out_features, logit_bias, s=64., m=0.5):
+        """logit_bias argument soley for compatibility."""
         super().__init__()
-        self.feat_dim = fc_layer_dim
-        self.num_class = out_features
+        self.in_features = in_features
+        self.out_features = out_features
         self.s = s
         self.m = m
-        self.w = nn.Parameter(torch.Tensor(fc_layer_dim, out_features))
+        self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
 
     def forward(self, features, labels):
@@ -114,8 +127,11 @@ class ArcFace(nn.Module):
             if labels is None:  # testing time forward pass
                 d_theta = torch.zeros_like(cos_theta)
             else:  # training time forward pass
+                # get boolean mask of known labels (to apply below transformations only on known inputs)
+                kn_idx = labels >= 0
+        
                 theta_m = torch.acos(cos_theta.clamp(-1+1e-5, 1-1e-5))
-                theta_m.scatter_(1, labels.view(-1, 1), self.m, reduce='add')
+                theta_m[kn_idx,:] = theta_m[kn_idx,:].scatter_(1, labels[kn_idx].view(-1, 1), self.m, reduce='add')
                 theta_m.clamp_(1e-5, math.pi)
                 d_theta = torch.cos(theta_m) - cos_theta
 

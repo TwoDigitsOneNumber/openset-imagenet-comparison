@@ -17,7 +17,7 @@ class EntropicOpensetLoss:
         categorical_targets = tools.device(torch.zeros(logits.shape))
         unk_idx = target < 0
         kn_idx = ~unk_idx
-        # check if there is known samples in the batch
+        # check if there are known samples in the batch
         if torch.any(kn_idx):
             categorical_targets[kn_idx, :] = self.eye[target[kn_idx]]
 

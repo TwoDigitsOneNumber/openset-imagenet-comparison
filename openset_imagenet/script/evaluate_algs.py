@@ -20,7 +20,7 @@ def command_line_options(command_line_arguments=None):
     # directory parameters
     parser.add_argument(
         "--losses", "-l",
-        choices = ["entropic", "softmax", "garbage"],
+        choices = ["entropic", "softmax", "garbage", "sphereface", "cosface", "arcface", "magface"],
         nargs="+",
         default = ["entropic", "softmax", "garbage"],
         help="Which loss functions to evaluate"
@@ -201,10 +201,10 @@ def process_model(protocol, loss, algorithms, cfg, suffix, gpu, force):
 
     # load base model
     if loss == "garbage":
-        n_classes = test_dataset.label_count - 1 # we use one class for the negatives; the dataset has two additional  labels: negative and unknown
+        n_classes = test_dataset.label_count - 1 # we use one class for the negatives; the dataset has two additional labels: negative and unknown
     else:
         n_classes = test_dataset.label_count - 2  # number of classes - 2 when training was without garbage class
-
+    
     if any(a!="proser" for a in algorithms):
         base_data = None if force else load_scores(loss, "threshold", suffix, output_directory)
         if base_data is None:
