@@ -187,7 +187,12 @@ def plot_score_distributions(args, scores, ground_truths, pdf):
 
             for a, algorithm in enumerate(algorithms):
                 # Calculate histogram
-                ax = axs[p,a]
+                # workaround to handle plots for only 1 algorithm
+                if A > 1:
+                    ax = axs[p,a]
+                else:
+                    ax = axs[p]
+
                 if scores[protocol][loss][algorithm] is not None:
                     histograms = openset_imagenet.util.get_histogram(
                         scores[protocol][loss][algorithm],
