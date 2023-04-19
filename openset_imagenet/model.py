@@ -7,7 +7,7 @@ import random
 import numpy as np
 import pathlib
 import vast
-from .logits_variants import Linear, SphereFace, CosFace, ArcFace
+from .logits_variants import Linear, SphereFace, CosFace, ArcFace, MagFace
 
 class ResNet50(nn.Module):
     """Represents a ResNet50 model"""
@@ -52,7 +52,10 @@ class ResNet50(nn.Module):
                 out_features=out_features,
                 logit_bias=logit_bias)
         elif logit_variant == 'magface':
-            # TODO
+            self.logits = MagFace(
+                in_features=fc_layer_dim,
+                out_features=out_features,
+                logit_bias=logit_bias)
             raise NotImplementedError
         else:
             raise ValueError('Invalid input specified! logit_variant must be one of: "linear", "sphereface", "cosface", "arcface", "magface".')
@@ -204,9 +207,6 @@ def load_checkpoint(model, checkpoint, opt=None, scheduler=None):
                 new_state_dict[key] = v_i
             model.load_state_dict(new_state_dict)
         else:
-            # TODO: check for errors
-            # print("\n--------")
-            # print(checkpoint["model_state_dict"].keys())
             model.load_state_dict(checkpoint["model_state_dict"])
 
         if opt is not None:  # Load optimizer state

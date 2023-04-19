@@ -16,7 +16,7 @@ from loguru import logger
 from .metrics import confidence, auc_score_binary, auc_score_multiclass
 from .dataset import ImagenetDataset
 from .model import ResNet50, load_checkpoint, save_checkpoint, set_seeds
-from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss
+from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, MagFaceLoss
 import tqdm
 
 
@@ -51,7 +51,10 @@ def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
         logits, features = model(images, labels)
 
         # Calculate loss
-        j = loss_fn(logits, labels)
+        if cfg.loss.type == 'magface':
+            j = loss_fn(logits, labels, features)
+        else:
+            j = loss_fn(logits, labels)
         trackers["j"].update(j.item(), batch_len)
         # Backward pass
         j.backward()
@@ -268,7 +271,9 @@ def worker(cfg):
     if cfg.loss.type == "entropic":
         # We select entropic loss using the unknown class weights from the config file
         loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
-    elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface", "magface"]:
+    elif cfg.loss.type == "magface":
+        loss = MagFaceLoss()
+    elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface"]:
         # We need to ignore the index only for validation loss computation
         loss = torch.nn.CrossEntropyLoss(ignore_index=-1)
     elif cfg.loss.type == "garbage":

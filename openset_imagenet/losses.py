@@ -13,13 +13,13 @@ class EntropicOpensetLoss:
         self.ones = tools.device(torch.ones(self.class_count)) * self.unknowns_multiplier
         self.cross_entropy = torch.nn.CrossEntropyLoss()
 
-    def __call__(self, logits, target):
+    def __call__(self, logits, targets):
         categorical_targets = tools.device(torch.zeros(logits.shape))
-        unk_idx = target < 0
+        unk_idx = targets < 0
         kn_idx = ~unk_idx
         # check if there are known samples in the batch
         if torch.any(kn_idx):
-            categorical_targets[kn_idx, :] = self.eye[target[kn_idx]]
+            categorical_targets[kn_idx, :] = self.eye[targets[kn_idx]]
 
         categorical_targets[unk_idx, :] = (
             self.ones.expand(
@@ -27,6 +27,23 @@ class EntropicOpensetLoss:
             )
         )
         return self.cross_entropy(logits, categorical_targets)
+
+class MagFaceLoss:
+    def __init__(self, lambda_g=35, u_a=110):
+        self.lambda_g = lambda_g
+        self.cross_entropy = torch.nn.CrossEntropyLoss()
+        self.u_a = u_a
+
+    def calc_loss_G(self, a):
+        """a: vector of norms of feature vectors, dim: Nx1, returns float"""
+        g = a/(self.u_a**2) + 1/(a)
+        return torch.mean(g)
+
+    def __call__(self, logits, targets, features):
+        a = torch.linalg.norm(features, ord=2, dim=1)
+
+        return self.cross_entropy(logits, targets) + self.lambda_g * self.calc_loss_G(a)
+
 
 
 class AverageMeter(object):
