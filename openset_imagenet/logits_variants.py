@@ -163,6 +163,7 @@ class ArcFace(nn.Module):
                 cos_theta = torch.cos(theta_m)
             # else just use cos_theta, i.e., pass no margin (m=0). In practice this means just skipping the above if statement
         logits = self.s * cos_theta
+        return logits
 
 
 class MagFace(nn.Module):
