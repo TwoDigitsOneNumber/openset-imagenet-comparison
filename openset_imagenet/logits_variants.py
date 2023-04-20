@@ -47,36 +47,39 @@ class SphereFace(nn.Module):
 
         # cos_theta and d_theta
         cos_theta = F.normalize(features, dim=1).mm(self.w)
-        with torch.no_grad():
-            m_theta = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
-            if labels is None:  # forward pass at test time
-                # mathematically equivalent to setting m=1 and k=0.
-                # this way avoids rewriting scatter_ without the use of label.
-                d_theta = torch.zeros_like(cos_theta)
-            else:
-                m_theta.scatter_(1, labels.view(-1, 1), self.m, reduce='multiply')
-                k = (m_theta / math.pi).floor()
-                sign = -2 * torch.remainder(k, 2) + 1  # (-1)**k
-                phi_theta = sign * torch.cos(m_theta) - 2. * k
-                d_theta = phi_theta - cos_theta
 
-        # hard feature normalization (using self.s)
-        logits = self.s * (cos_theta + d_theta)
-        return logits
-        
-        # # my (supposedly correct) version:
+        # # their (maybe incorrect) version
         # with torch.no_grad():
-        #     if labels is not None:  # training time forward pass
+        #     m_theta = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
+        #     if labels is None:  # forward pass at test time
+        #         # mathematically equivalent to setting m=1 and k=0.
+        #         # this way avoids rewriting scatter_ without the use of label.
+        #         d_theta = torch.zeros_like(cos_theta)
+        #     else:
         #         m_theta.scatter_(1, labels.view(-1, 1), self.m, reduce='multiply')
         #         k = (m_theta / math.pi).floor()
         #         sign = -2 * torch.remainder(k, 2) + 1  # (-1)**k
         #         phi_theta = sign * torch.cos(m_theta) - 2. * k
-        #         cos_theta.scatter_(1, labels.view(-1, 1), phi_theta) 
-        #     # else just use cos_theta, i.e., pass no margin (m=1) and cnange no sign (k=0). In practice this means just skipping the above if statement
+        #         d_theta = phi_theta - cos_theta
 
         # # hard feature normalization (using self.s)
-        # logits = self.s * cos_theta
+        # logits = self.s * (cos_theta + d_theta)
         # return logits
+        
+        # my (supposedly correct) version:
+        with torch.no_grad():
+            m_theta = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
+            if labels is not None:  # training time forward pass
+                m_theta.scatter_(1, labels.view(-1, 1), self.m, reduce='multiply')
+                k = (m_theta / math.pi).floor()
+                sign = -2 * torch.remainder(k, 2) + 1  # (-1)**k
+                phi_theta = sign * torch.cos(m_theta) - 2. * k
+                cos_theta.scatter_(1, labels.view(-1, 1), phi_theta) 
+            # else just use cos_theta, i.e., pass no margin (m=1) and cnange no sign (k=0). In practice this means just skipping the above if statement
+
+        # hard feature normalization (using self.s)
+        logits = self.s * cos_theta
+        return logits
 
 
 class CosFace(nn.Module):
@@ -157,7 +160,7 @@ class ArcFace(nn.Module):
         #         theta_m.scatter_(1, labels.view(-1, 1), self.m, reduce='add')
         #         theta_m.clamp_(1e-5, math.pi)
         #         cos_theta = torch.cos(theta_m)
-        #     # else just use cos_theta, i.e., pass no margin (m=1) and cnange no sign (k=0). In practice this means just skipping the above if statement
+        #     # else just use cos_theta, i.e., pass no margin (m=0). In practice this means just skipping the above if statement
         # logits = self.s * cos_theta
 
 
@@ -201,6 +204,6 @@ class MagFace(nn.Module):
                 theta_m.clamp_(1e-5, math.pi)
                 cos_theta = torch.cos(theta_m)
 
-        #     # else just use cos_theta, i.e., pass no margin (m=1) and cnange no sign (k=0). In practice this means just skipping the above if statement
+        #     # else just use cos_theta, i.e., pass no margin (m(a_i)=0 for all a_i). In practice this means just skipping the above if statement
         logits = self.s * cos_theta
         return logits

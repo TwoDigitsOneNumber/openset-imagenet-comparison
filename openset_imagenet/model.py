@@ -56,7 +56,6 @@ class ResNet50(nn.Module):
                 in_features=fc_layer_dim,
                 out_features=out_features,
                 logit_bias=logit_bias)
-            raise NotImplementedError
         else:
             raise ValueError('Invalid input specified! logit_variant must be one of: "linear", "sphereface", "cosface", "arcface", "magface".')
 

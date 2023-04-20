@@ -98,7 +98,11 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
             logits, features = model(images, None)
             scores = torch.nn.functional.softmax(logits, dim=1)
 
-            j = loss_fn(logits, labels)
+            # Calculate loss
+            if cfg.loss.type == 'magface':
+                j = loss_fn(logits, labels, features)
+            else:
+                j = loss_fn(logits, labels)
             trackers["j"].update(j.item(), batch_len)
 
             # accumulate partial results in empty tensors
