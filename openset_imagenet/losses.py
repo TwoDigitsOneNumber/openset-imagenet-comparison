@@ -90,7 +90,7 @@ class ObjectosphereLossWrapper:
         self.lambda_os = lambda_os
         self.xi = xi
         self.prepended_loss_requires_features = prepended_loss_requires_features
-        self.objectosphere_loss = ObjectosphereLoss()
+        self.objectosphere_loss = ObjectosphereLoss(self.xi)
 
     def __call__(self, logits, targets, features):
         if self.prepended_loss_requires_features:

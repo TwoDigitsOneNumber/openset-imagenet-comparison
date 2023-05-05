@@ -7,7 +7,7 @@ import random
 import numpy as np
 import pathlib
 import vast
-from .logits_variants import Linear, SphereFace, CosFace, ArcFace, MagFace
+from .logits_variants import Linear, SphereFace, CosFace, ArcFace, MagFace, CosFaceWithNegatives
 
 class ResNet50(nn.Module):
     """Represents a ResNet50 model"""
@@ -53,6 +53,11 @@ class ResNet50(nn.Module):
                 logit_bias=logit_bias)
         elif logit_variant == 'magface':
             self.logits = MagFace(
+                in_features=fc_layer_dim,
+                out_features=out_features,
+                logit_bias=logit_bias)
+        elif logit_variant == 'cosos':
+            self.logits = CosFaceWithNegatives(
                 in_features=fc_layer_dim,
                 out_features=out_features,
                 logit_bias=logit_bias)

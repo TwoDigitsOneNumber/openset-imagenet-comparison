@@ -16,7 +16,7 @@ from loguru import logger
 from .metrics import confidence, auc_score_binary, auc_score_multiclass
 from .dataset import ImagenetDataset
 from .model import ResNet50, load_checkpoint, save_checkpoint, set_seeds
-from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, MagFaceLoss
+from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, MagFaceLoss, ObjectosphereLossWrapper
 import tqdm
 
 
@@ -51,7 +51,7 @@ def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
         logits, features = model(images, labels)
 
         # Calculate loss
-        if cfg.loss.type == 'magface':
+        if cfg.loss.type in ['magface', 'cosos']:
             j = loss_fn(logits, labels, features)
         else:
             j = loss_fn(logits, labels)
@@ -100,7 +100,7 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
             scores = torch.nn.functional.softmax(logits, dim=1)
 
             # Calculate loss
-            if cfg.loss.type == 'magface':
+            if cfg.loss.type in ['magface', 'cosos']:
                 j = loss_fn(logits, labels, features)
             else:
                 j = loss_fn(logits, labels)
@@ -265,7 +265,7 @@ def worker(cfg):
 
     # set loss
     loss = None
-    if cfg.loss.type in ["entropic"]:
+    if cfg.loss.type in ["entropic", 'cosos']:
         # number of classes - 1 since we have no label for unknown
         n_classes = train_ds.label_count - 1
     else:
@@ -276,6 +276,8 @@ def worker(cfg):
     if cfg.loss.type == "entropic":
         # We select entropic loss using the unknown class weights from the config file
         loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
+    elif cfg.loss.type == 'cosos':
+        loss = ObjectosphereLossWrapper(torch.nn.CrossEntropyLoss(ignore_index=-1), lambda_os=1, xi=64.)
     elif cfg.loss.type == "magface":
         loss = MagFaceLoss()
     elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface"]:
@@ -287,7 +289,7 @@ def worker(cfg):
         loss = torch.nn.CrossEntropyLoss(weight=class_weights)
 
     # select logit variant (should be specified vie command line arguments for the loss functions)
-    if cfg.loss.type in ["sphereface", "cosface", "arcface", "magface"]:
+    if cfg.loss.type in ["sphereface", "cosface", "arcface", "magface", 'cosos']:
         logit_variant = cfg.loss.type
     else:
         logit_variant = 'linear'
