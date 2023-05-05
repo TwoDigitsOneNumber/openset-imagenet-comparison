@@ -53,6 +53,10 @@ optimized: # the parameter settings that provide optimal values on the val set
       softmax: {tailsize: 1000, distance_multiplier: 2.3, alpha: 10}
       entropic: {tailsize: 500, distance_multiplier: 2.0, alpha: 3}
       garbage: {tailsize: 750, distance_multiplier: 1.7, alpha: 5}
+      sphereface: {tailsize: 1000, distance_multiplier: 2.3, alpha: 10}
+      cosface: {tailsize: 1000, distance_multiplier: 2.3, alpha: 5}
+      arcface: {tailsize: 750, distance_multiplier: 2, alpha: 5}
+      magface: {tailsize: 750, distance_multiplier: 2.3, alpha: 10}
 
     p3:
       softmax: {tailsize: 750, distance_multiplier: 2.3, alpha: 5}
