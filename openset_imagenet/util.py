@@ -171,7 +171,7 @@ STYLES = {
     "sphereface": "dashdot",
     "cosface": "dashed",
     "arcface": "dotted",
-    "magface": "",
+    "magface": "solid",
     "p1": "dashed",
     "p2": "dotted",
     "p3": "solid"

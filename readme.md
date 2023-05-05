@@ -103,7 +103,7 @@ Particularly, EVM and OpenMax have a set of parameters that should be optimized.
 Due to the nature of the algorithms, the `train_imagenet_all.py` script has already trained and saved all parameter combinations as provided in the configuration files of these two algorithms, here the task is only to evaluate the algorithms on unseen data.
 Naturally, we will make use of the known and the negative samples of the validation set to perform the parameter optimization.
 
-The parameter optimization will be done via the `parameter_optimization.py` script.
+The parameter optimization will be done via the `parameter_selection.py` script.
 It will read the configuration files of the EVM and OpenMax algorithms, load the images from the validation set, extract features with all trained base networks (as given by the `--losses` parameter), and evaluate the different parameter settings of the algorithms.
 Particularly, the CCR values at various FPR thresholds will be computed.
 Depending on the protocol, this might require several minutes to hours.

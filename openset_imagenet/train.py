@@ -56,6 +56,7 @@ def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
         else:
             j = loss_fn(logits, labels)
         trackers["j"].update(j.item(), batch_len)
+
         # Backward pass
         j.backward()
         optimizer.step()

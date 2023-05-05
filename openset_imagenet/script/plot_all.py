@@ -188,10 +188,14 @@ def plot_score_distributions(args, scores, ground_truths, pdf):
             for a, algorithm in enumerate(algorithms):
                 # Calculate histogram
                 # workaround to handle plots for only 1 algorithm
-                if A > 1:
+                if A > 1 and P > 1:
                     ax = axs[p,a]
-                else:
+                elif A > 1:
+                    ax = axs[a]
+                elif P > 1:
                     ax = axs[p]
+                else:
+                    ax = axs
 
                 if scores[protocol][loss][algorithm] is not None:
                     histograms = openset_imagenet.util.get_histogram(
@@ -217,7 +221,14 @@ def plot_score_distributions(args, scores, ground_truths, pdf):
             for a in range(A):
                 if a != max_a[1]:
 #                    axs[p,a].set_ylim([0, max_a[0]])
-                    axs[p,a].sharey(axs[p,max_a[1]])
+                    if A > 1 and P > 1:
+                        axs[p,a].sharey(axs[p,max_a[1]])
+                    elif A > 1:
+                        axs[a].sharey(axs[max_a[1]])
+                    elif P > 1:
+                        axs[p].sharey(axs[p])
+                    # else:
+                    #     ax = axs
 
 
         # Manual legend

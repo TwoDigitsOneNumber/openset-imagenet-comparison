@@ -166,7 +166,7 @@ def post_process(gt, logits, features, scores, cfg, protocol, loss, algorithm, o
 
     hyperparams = openset_imagenet.util.NameSpace(dict(distance_metric = opt.distance_metric))
     if algorithm == 'openmax':
-        #scores are being adjusted her through openmax alpha
+        #scores are being adjusted here through openmax alpha
         logger.info("adjusting probabilities for openmax with alpha")
         return compute_adjust_probs(gt, logits, features, scores, model_dict, "openmax", gpu, hyperparams, popt.alpha)
     elif algorithm == 'evm':

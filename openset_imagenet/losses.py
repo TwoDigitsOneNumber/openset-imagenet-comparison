@@ -1,5 +1,5 @@
 """ Code taken from the vast library https://github.com/Vastlab/vast"""
-from torch.nn import functional as f
+from torch.nn import functional as F
 import torch
 from vast import tools
 
@@ -28,10 +28,11 @@ class EntropicOpensetLoss:
         )
         return self.cross_entropy(logits, categorical_targets)
 
+
 class MagFaceLoss:
     def __init__(self, lambda_g=35, u_a=110):
         self.lambda_g = lambda_g
-        self.cross_entropy = torch.nn.CrossEntropyLoss()
+        self.cross_entropy = torch.nn.CrossEntropyLoss(ignore_index=-1)
         self.u_a = u_a
 
     def calc_loss_G(self, a):
@@ -44,6 +45,58 @@ class MagFaceLoss:
 
         return self.cross_entropy(logits, targets) + self.lambda_g * self.calc_loss_G(a)
 
+
+class ObjectosphereLoss:
+    """Computes only the objectosphere loss, i.e.: (J_R - J_E) / lambda. See equation (2) in "Reducing Network Agnostophobia (2018)" by Akshay Raj Dhamija, Manuel Günther, Terrance E. Boult.
+
+    params:
+        xi (float): target lower boundary of feature magnitude for knowns.
+    """
+    # TODO: double check implementation
+    def __init__(self, xi):
+        self.xi = xi
+
+    def __call__(self, logits, targets, features):
+        # distinguish knowns from negatives/unknowns (via boolean mask)
+        unk_idx = targets < 0
+        kn_idx = ~unk_idx
+
+        # compute feature magnitudes a
+        a = torch.linalg.norm(features, ord=2, dim=1)
+
+        # compute loss accordingly
+        error_knowns = torch.square(torch.maximum(self.xi-a[kn_idx], torch.zeros_like(a[kn_idx]))) 
+        error_unknowns = torch.square(a[unk_idx])
+
+        # reduce via mean and then return
+        return torch.mean(torch.cat((error_knowns, error_unknowns)))
+
+
+class ObjectosphereLossWrapper:
+    """
+    Loss that when called appends the objectosphere loss to the input loss.
+
+    params:
+        prepended_loss (function): 
+            loss function (f) that gets combined with objectosphere loss (o) as follows: prepended_loss(logits, targets) + lambda_os * objecto_sphere(logits, targets, features). 
+            It must be able to be called via: prepended_loss(logits, targets). If it needs the features as additional argument it must be called as prepended_loss(logits, targets, features) and you must set prepended_loss_requires_features=True.
+        lambda_os (float): weight for the objectosphere loss
+        xi (float): target lower boundary of feature magnitude for knowns.
+        prepended_loss_requires_features (bool): set true if prepended_loss requires the features as input.
+    """
+    # TODO: double check implementation
+    def __init__(self, prepended_loss, lambda_os, xi, prepended_loss_requires_features=False):
+        self.prepended_loss = prepended_loss
+        self.lambda_os = lambda_os
+        self.xi = xi
+        self.prepended_loss_requires_features = prepended_loss_requires_features
+        self.objectosphere_loss = ObjectosphereLoss()
+
+    def __call__(self, logits, targets, features):
+        if self.prepended_loss_requires_features:
+            return self.prepended_loss(logits, targets, features) + self.lambda_os * self.objectosphere_loss(logits, targets, features)
+        else:
+            return self.prepended_loss(logits, targets) + self.lambda_os * self.objectosphere_loss(logits, targets, features)
 
 
 class AverageMeter(object):

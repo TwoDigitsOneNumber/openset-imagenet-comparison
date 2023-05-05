@@ -10,14 +10,9 @@ class Linear(nn.Module):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
-        # self.logit_bias = logit_bias
 
         self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
-        # self.logits = nn.Linear(
-        #     in_features=self.in_features,
-        #     out_features=self.out_features,
-        #     bias=self.logit_bias)
 
     def forward(self, features, labels):
         logits = features.mm(self.w)
@@ -141,29 +136,29 @@ class ArcFace(nn.Module):
 
         cos_theta = F.normalize(features, dim=1).mm(self.w)
 
-        # # their version (should be correct)
-        # with torch.no_grad():
-        #     if labels is None:  # testing time forward pass
-        #         d_theta = torch.zeros_like(cos_theta)
-        #     else:  # training time forward pass
-        #         theta_m = torch.acos(cos_theta.clamp(-1+1e-5, 1-1e-5))
-        #         theta_m.scatter_(1, labels.view(-1, 1), self.m, reduce='add')
-        #         theta_m.clamp_(1e-5, math.pi)
-        #         d_theta = torch.cos(theta_m) - cos_theta
-
-        # logits = self.s * (cos_theta + d_theta)
-        # return logits
-
-        # my version (no unnecessary tensor initialization for d_theta)
+        # their version (should be correct)
         with torch.no_grad():
-            if labels is not None:  # training time forward pass
+            if labels is None:  # testing time forward pass
+                d_theta = torch.zeros_like(cos_theta)
+            else:  # training time forward pass
                 theta_m = torch.acos(cos_theta.clamp(-1+1e-5, 1-1e-5))
                 theta_m.scatter_(1, labels.view(-1, 1), self.m, reduce='add')
                 theta_m.clamp_(1e-5, math.pi)
-                cos_theta = torch.cos(theta_m)
-            # else just use cos_theta, i.e., pass no margin (m=0). In practice this means just skipping the above if statement
-        logits = self.s * cos_theta
+                d_theta = torch.cos(theta_m) - cos_theta
+
+        logits = self.s * (cos_theta + d_theta)
         return logits
+
+        # # my version (no unnecessary tensor initialization for d_theta)
+        # with torch.no_grad():
+        #     if labels is not None:  # training time forward pass
+        #         theta_m = torch.acos(cos_theta.clamp(-1+1e-5, 1-1e-5))
+        #         theta_m.scatter_(1, labels.view(-1, 1), self.m, reduce='add')
+        #         theta_m.clamp_(1e-5, math.pi)
+        #         cos_theta = torch.cos(theta_m)
+        #     # else just use cos_theta, i.e., pass no margin (m=0). In practice this means just skipping the above if statement
+        # logits = self.s * cos_theta
+        # return logits
 
 
 class MagFace(nn.Module):
@@ -190,21 +185,24 @@ class MagFace(nn.Module):
         return margin
 
     def forward(self, features, labels):
-
         with torch.no_grad():
             self.w.data = F.normalize(self.w.data, dim=0)
 
         cos_theta = F.normalize(features, dim=1).mm(self.w)
+
         with torch.no_grad():
-            if labels is not None:  # training time forward pass
+            if labels is None:  # testing time forward pass
+                d_theta = torch.zeros_like(cos_theta)
+            else:  # training time forward pass
+
                 # compute norms of feature vectors
                 a = torch.linalg.norm(features, ord=2, dim=1)
 
                 theta_m = torch.acos(cos_theta.clamp(-1+1e-5, 1-1e-5))
                 theta_m.scatter_(1, labels.view(-1, 1), self._margin(a).view(-1,1), reduce='add')
                 theta_m.clamp_(1e-5, math.pi)
-                cos_theta = torch.cos(theta_m)
+                d_theta = torch.cos(theta_m) - cos_theta
 
         #     # else just use cos_theta, i.e., pass no margin (m(a_i)=0 for all a_i). In practice this means just skipping the above if statement
-        logits = self.s * cos_theta
+        logits = self.s * (cos_theta + d_theta)
         return logits
