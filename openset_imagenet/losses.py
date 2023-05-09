@@ -52,7 +52,6 @@ class ObjectosphereLoss:
     params:
         xi (float): target lower boundary of feature magnitude for knowns.
     """
-    # TODO: double check implementation
     def __init__(self, xi):
         self.xi = xi
 
@@ -84,7 +83,6 @@ class ObjectosphereLossWrapper:
         xi (float): target lower boundary of feature magnitude for knowns.
         prepended_loss_requires_features (bool): set true if prepended_loss requires the features as input.
     """
-    # TODO: double check implementation
     def __init__(self, prepended_loss, lambda_os, xi, prepended_loss_requires_features=False):
         self.prepended_loss = prepended_loss
         self.lambda_os = lambda_os

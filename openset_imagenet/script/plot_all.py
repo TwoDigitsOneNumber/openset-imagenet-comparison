@@ -41,8 +41,8 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
         "--losses", "-l",
         nargs = "+",
-        choices = ('softmax', 'garbage', 'entropic', 'sphereface', 'cosface', 'arcface', 'magface'),
-        default = ('softmax', 'garbage', 'entropic', 'sphereface', 'cosface', 'arcface', 'magface'),
+        choices = ('softmax', 'garbage', 'entropic', 'sphereface', 'cosface', 'arcface', 'magface', 'cosos'),
+        default = ('softmax', 'entropic', 'cosface', 'cosos'),
         help = "Select the loss functions that should be included into the plot"
     )
     parser.add_argument(

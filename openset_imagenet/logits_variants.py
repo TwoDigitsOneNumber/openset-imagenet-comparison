@@ -209,40 +209,11 @@ class MagFace(nn.Module):
         return logits
 
 
-class GenericCosineMargin(nn.Module):
-    """
-    CosFace logit without feature normalization.
-    """
-    def __init__(self, in_features, out_features, logit_bias, m=0.35):
-        """logit_bias argument soley for compatibility."""
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.m = m
-        self.w = nn.Parameter(torch.Tensor(in_features, out_features))
-        nn.init.xavier_normal_(self.w)
-
-    def forward(self, features, labels):
-        # TODO: double check implementation
-        with torch.no_grad():
-            self.w.data = F.normalize(self.w.data, dim=0)
-
-        cos_theta = features.mm(self.w)
-
-        with torch.no_grad():
-            # get feature magnitudes
-            a = torch.linalg.norm(features, ord=2, dim=1)
-            if labels is not None:  # training time forward pass
-                cos_theta.scatter_(1, labels.view(-1, 1), -self.m, reduce='add')
-
-            logits = torch.mul(a, cos_theta)
-
-        return logits
-
-
 
 class CosFaceWithNegatives(nn.Module):
     """
+        CosFace implemented such that it ignores negative samples (data points with target < 0)
+
         Taken from https://github.com/ydwen/opensphere/blob/main/model/head/cosface.py and adapted.
         reference1: <CosFace: Large Margin Cosine Loss for Deep Face Recognition>
         reference2: <Additive Margin Softmax for Face Verification>
@@ -273,3 +244,48 @@ class CosFaceWithNegatives(nn.Module):
 
         logits = self.s * cos_theta
         return logits
+
+
+class CosineMargin(nn.Module):
+    """
+        CosFace adapted with optional feature normalization and such that it ignores negative samples (data points with target < 0).
+
+        For s=64 equal to CosFace. Use s=None for use with ObjectosphereLossWrapper.
+
+        Taken from https://github.com/ydwen/opensphere/blob/main/model/head/cosface.py and adapted.
+        reference1: <CosFace: Large Margin Cosine Loss for Deep Face Recognition>
+        reference2: <Additive Margin Softmax for Face Verification>
+    """
+    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.35):
+        """
+        logit_bias argument soley for compatibility.
+
+        set s=None for no feature normalization.
+        """
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.s = s
+        self.m = m
+        self.w = nn.Parameter(torch.Tensor(in_features, out_features))
+        nn.init.xavier_normal_(self.w)
+
+    def forward(self, features, labels):
+        with torch.no_grad():
+            self.w.data = F.normalize(self.w.data, dim=0)
+
+        cos_theta = F.normalize(features, dim=1).mm(self.w)  # \cos(\theta_{i,j})
+
+        with torch.no_grad():
+            if labels is not None:  # training time forward pass
+                # distinguish knowns from negatives/unknowns (via boolean mask) and only add margin to knowns
+                kn_idx = labels >= 0
+                cos_theta[kn_idx,:].scatter_(1, labels[kn_idx].view(-1, 1), -self.m, reduce='add')
+
+        if self.s is None:
+            a = torch.linalg.norm(features, ord=2, dim=1)
+            logits = torch.mul(a.view(-1,1), cos_theta)
+        else:
+            logits = self.s * cos_theta
+        return logits
+
