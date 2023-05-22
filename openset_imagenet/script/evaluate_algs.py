@@ -20,7 +20,7 @@ def command_line_options(command_line_arguments=None):
     # directory parameters
     parser.add_argument(
         "--losses", "-l",
-        choices = ["entropic", "softmax", "garbage", "sphereface", "cosface", "arcface", "magface", "cosos"],
+        choices = ["entropic", "softmax", "garbage", "sphereface", "cosface", "arcface", "magface", "cosos", "coseos"],
         nargs="+",
         default = ["entropic", "softmax", "garbage"],
         help="Which loss functions to evaluate"

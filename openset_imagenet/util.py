@@ -173,6 +173,7 @@ STYLES = {
     "arcface": "dotted",
     "magface": "solid",
     "cosos": "dotted",
+    "coseos": "solid",
     "p1": "dashed",
     "p2": "dotted",
     "p3": "solid"
@@ -192,6 +193,7 @@ NAMES = {
     "arcface": "ArcFace",
     "magface": "MagFace",
     "cosos": "CosOS",
+    "coseos": "CosEOS",
     "p1": "P_1",
     "p2": "P_2",
     "p3": "P_3",

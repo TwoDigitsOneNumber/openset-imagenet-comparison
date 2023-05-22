@@ -265,7 +265,7 @@ def worker(cfg):
 
     # set loss
     loss = None
-    if cfg.loss.type in ["entropic", 'cosos']:
+    if cfg.loss.type in ["entropic", 'cosos', 'coseos']:
         # number of classes - 1 since we have no label for unknown
         n_classes = train_ds.label_count - 1
     else:
@@ -273,7 +273,7 @@ def worker(cfg):
         n_classes = train_ds.label_count
     
     # select loss function
-    if cfg.loss.type == "entropic":
+    if cfg.loss.type in ["entropic", 'coseos']:
         # We select entropic loss using the unknown class weights from the config file
         loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
     elif cfg.loss.type == 'cosos':
@@ -289,7 +289,7 @@ def worker(cfg):
         loss = torch.nn.CrossEntropyLoss(weight=class_weights)
 
     # select logit variant (should be specified vie command line arguments for the loss functions)
-    if cfg.loss.type in ["sphereface", "cosface", "arcface", "magface", 'cosos']:
+    if cfg.loss.type in ["sphereface", "cosface", "arcface", "magface", 'cosos', 'coseos']:
         logit_variant = cfg.loss.type
     else:
         logit_variant = 'linear'

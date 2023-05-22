@@ -35,32 +35,40 @@ class ResNet50(nn.Module):
             self.logits = Linear(
                 in_features=fc_layer_dim,
                 out_features=out_features,
-                logit_bias=logit_bias)
+                logit_bias=logit_bias
+            )
         elif logit_variant == 'sphereface':
             self.logits = SphereFace(
                 in_features=fc_layer_dim,
                 out_features=out_features,
-                logit_bias=logit_bias)
-        elif logit_variant == 'cosface':
+                logit_bias=logit_bias
+            )
+        elif logit_variant in ['cosface']:
             self.logits = CosFace(
                 in_features=fc_layer_dim,
                 out_features=out_features,
-                logit_bias=logit_bias)
+                logit_bias=logit_bias
+            )
         elif logit_variant == 'arcface':
             self.logits = ArcFace(
                 in_features=fc_layer_dim,
                 out_features=out_features,
-                logit_bias=logit_bias)
+                logit_bias=logit_bias
+            )
         elif logit_variant == 'magface':
             self.logits = MagFace(
                 in_features=fc_layer_dim,
                 out_features=out_features,
-                logit_bias=logit_bias)
-        elif logit_variant == 'cosos':
+                logit_bias=logit_bias
+            )
+        elif logit_variant in ['cosos']:
             self.logits = CosineMargin(
                 in_features=fc_layer_dim,
                 out_features=out_features,
-                logit_bias=logit_bias)
+                logit_bias=logit_bias,
+                s=64,
+                variable_magnitude_during_testing=True
+            )
         else:
             raise ValueError('Invalid input specified! logit_variant must be one of: "linear", "sphereface", "cosface", "arcface", "magface".')
 

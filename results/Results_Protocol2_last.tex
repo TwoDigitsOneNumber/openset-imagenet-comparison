@@ -1,7 +1,11 @@
 \bf Algorithm & \bf Loss & $10^{-3}$ & $10^{-2}$ & $10^{-1}$ & $1$\\\hline\hline
-\multirow{2}{*}{Threshold} & CosFace & & & & \textcolor{blue}{\bf 0.6480}\\
- & CosOS & & & & \underline{0.6340}\\
+\multirow{4}{*}{Threshold} & EOS & 0.0220 & \underline{0.1113} & \it 0.3380 & \underline{0.5780}\\
+ & Softmax & \it 0.0327 & 0.1227 & 0.3033 & \textcolor{blue}{\bf 0.5933}\\
+ & CosFace & \underline{0.0007} & \underline{0.0127} & 0.0720 & \underline{0.2427}\\
+ & CosOS & \underline{0.0227} & \it 0.1353 & \underline{0.3260} & \underline{0.5367}\\
 \hline
-\multirow{2}{*}{MaxLogits} & CosFace & \textcolor{blue}{\bf 0.0767} & \textcolor{blue}{\bf 0.2213} & \textcolor{blue}{\bf 0.4773} & \textcolor{blue}{\bf 0.6480}\\
- & CosOS & \underline{0.0293} & \underline{0.1793} & \underline{0.4220} & \underline{0.6340}\\
+\multirow{4}{*}{MaxLogits} & EOS & \underline{0.0367} & 0.1060 & \underline{0.3393} & \underline{0.5780}\\
+ & Softmax & \textcolor{blue}{\bf 0.0580} & \textcolor{blue}{\bf 0.1560} & \textcolor{blue}{\bf 0.3933} & \textcolor{blue}{\bf 0.5933}\\
+ & CosFace & 0.0000 & 0.0107 & \underline{0.0780} & \underline{0.2427}\\
+ & CosOS & 0.0067 & 0.0860 & 0.2687 & \underline{0.5367}\\
 \hline

@@ -24,9 +24,10 @@ class SphereFace(nn.Module):
        reference: <SphereFace: Deep Hypersphere Embedding for Face Recognition>"
        It also used characteristic gradient detachment tricks proposed in
        <SphereFace Revived: Unifying Hyperspherical Face Recognition>.
+
+        logit_bias argument in constructor soley for compatibility.
     """
     def __init__(self, in_features, out_features, logit_bias, s=30., m=1.5):
-        """logit_bias argument soley for compatibility."""
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -43,38 +44,38 @@ class SphereFace(nn.Module):
         # cos_theta and d_theta
         cos_theta = F.normalize(features, dim=1).mm(self.w)
 
-        # # their (maybe incorrect) version
-        # with torch.no_grad():
-        #     m_theta = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
-        #     if labels is None:  # forward pass at test time
-        #         # mathematically equivalent to setting m=1 and k=0.
-        #         # this way avoids rewriting scatter_ without the use of label.
-        #         d_theta = torch.zeros_like(cos_theta)
-        #     else:
-        #         m_theta.scatter_(1, labels.view(-1, 1), self.m, reduce='multiply')
-        #         k = (m_theta / math.pi).floor()
-        #         sign = -2 * torch.remainder(k, 2) + 1  # (-1)**k
-        #         phi_theta = sign * torch.cos(m_theta) - 2. * k
-        #         d_theta = phi_theta - cos_theta
-
-        # # hard feature normalization (using self.s)
-        # logits = self.s * (cos_theta + d_theta)
-        # return logits
-        
-        # my (supposedly correct) version:
+        # their (maybe incorrect) version
         with torch.no_grad():
             m_theta = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
-            if labels is not None:  # training time forward pass
+            if labels is None:  # forward pass at test time
+                # mathematically equivalent to setting m=1 and k=0.
+                # this way avoids rewriting scatter_ without the use of label.
+                d_theta = torch.zeros_like(cos_theta)
+            else:
                 m_theta.scatter_(1, labels.view(-1, 1), self.m, reduce='multiply')
                 k = (m_theta / math.pi).floor()
                 sign = -2 * torch.remainder(k, 2) + 1  # (-1)**k
                 phi_theta = sign * torch.cos(m_theta) - 2. * k
-                cos_theta.scatter_(1, labels.view(-1, 1), phi_theta) 
-            # else just use cos_theta, i.e., pass no margin (m=1) and cnange no sign (k=0). In practice this means just skipping the above if statement
+                d_theta = phi_theta - cos_theta
 
         # hard feature normalization (using self.s)
-        logits = self.s * cos_theta
+        logits = self.s * (cos_theta + d_theta)
         return logits
+        
+        # # my (supposedly correct) version:
+        # with torch.no_grad():
+        #     m_theta = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
+        #     if labels is not None:  # training time forward pass
+        #         m_theta.scatter_(1, labels.view(-1, 1), self.m, reduce='multiply')
+        #         k = (m_theta / math.pi).floor()
+        #         sign = -2 * torch.remainder(k, 2) + 1  # (-1)**k
+        #         phi_theta = sign * torch.cos(m_theta) - 2. * k
+        #         cos_theta.scatter_(1, labels.view(-1, 1), phi_theta) 
+        #     # else just use cos_theta, i.e., pass no margin (m=1) and cnange no sign (k=0). In practice this means just skipping the above if statement
+
+        # # hard feature normalization (using self.s)
+        # logits = self.s * cos_theta
+        # return logits
 
 
 class CosFace(nn.Module):
@@ -82,9 +83,10 @@ class CosFace(nn.Module):
         Taken from https://github.com/ydwen/opensphere/blob/main/model/head/cosface.py and adapted.
         reference1: <CosFace: Large Margin Cosine Loss for Deep Face Recognition>
         reference2: <Additive Margin Softmax for Face Verification>
+
+        logit_bias argument in constructor soley for compatibility.
     """
     def __init__(self, in_features, out_features, logit_bias, s=64., m=0.35):
-        """logit_bias argument soley for compatibility."""
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -120,9 +122,10 @@ class ArcFace(nn.Module):
     """
         Taken from https://github.com/ydwen/opensphere/blob/main/model/head/arcface.py and adapted.
         reference: <Additive Angular Margin Loss for Deep Face Recognition>
+
+        logit_bias argument in constructor soley for compatibility.
     """
     def __init__(self, in_features, out_features, logit_bias, s=64., m=0.5):
-        """logit_bias argument soley for compatibility."""
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -166,9 +169,10 @@ class MagFace(nn.Module):
     """
     Inspired by https://github.com/IrvingMeng/MagFace but mostly adapted from ArcFace implementation.
     MagFace Loss.
+
+        logit_bias argument in constructor soley for compatibility.
     """
     def __init__(self, in_features, out_features, logit_bias, s=64., l_a=10, u_a=110, l_m=.4, u_m=.8):
-        """logit_bias argument soley for compatibility."""
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -209,7 +213,6 @@ class MagFace(nn.Module):
         return logits
 
 
-
 class CosFaceWithNegatives(nn.Module):
     """
         CosFace implemented such that it ignores negative samples (data points with target < 0)
@@ -217,9 +220,10 @@ class CosFaceWithNegatives(nn.Module):
         Taken from https://github.com/ydwen/opensphere/blob/main/model/head/cosface.py and adapted.
         reference1: <CosFace: Large Margin Cosine Loss for Deep Face Recognition>
         reference2: <Additive Margin Softmax for Face Verification>
+
+        logit_bias argument in constructor soley for compatibility.
     """
     def __init__(self, in_features, out_features, logit_bias, s=64., m=0.35):
-        """logit_bias argument soley for compatibility."""
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -250,17 +254,17 @@ class CosineMargin(nn.Module):
     """
         CosFace adapted with optional feature normalization and such that it ignores negative samples (data points with target < 0).
 
-        For s=64 equal to CosFace. Use s=None for use with ObjectosphereLossWrapper.
-
         Taken from https://github.com/ydwen/opensphere/blob/main/model/head/cosface.py and adapted.
         reference1: <CosFace: Large Margin Cosine Loss for Deep Face Recognition>
         reference2: <Additive Margin Softmax for Face Verification>
-    """
-    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.35):
-        """
-        logit_bias argument soley for compatibility.
 
-        set s=None for no feature normalization.
+    """
+    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.35, variable_magnitude_during_testing=False):
+        """
+        parameters:
+            s (int): Feature magnitude in the deep feature space. For s=64 equal to CosFace. Use s=None for no feature normalization.
+            logit_bias argument in constructor soley for compatibility, has no effect.
+            variable_magnitude_during_testing (bool): lets feature magnitudes be variable during testing/validation, allows to keep feature magnitude fixed only during training. Only has an effect when s is not None.
         """
         super().__init__()
         self.in_features = in_features
@@ -268,9 +272,11 @@ class CosineMargin(nn.Module):
         self.s = s
         self.m = m
         self.w = nn.Parameter(torch.Tensor(in_features, out_features))
+        self.variable_magnitude_during_testing = variable_magnitude_during_testing
         nn.init.xavier_normal_(self.w)
 
     def forward(self, features, labels):
+        """set labels to None during evaluation, i.e., testing time forward pass."""
         with torch.no_grad():
             self.w.data = F.normalize(self.w.data, dim=0)
 
@@ -282,10 +288,12 @@ class CosineMargin(nn.Module):
                 kn_idx = labels >= 0
                 cos_theta[kn_idx,:].scatter_(1, labels[kn_idx].view(-1, 1), -self.m, reduce='add')
 
-        if self.s is None:
+        # variable feature magnitude if 
+        if (self.s is None) or (self.s is not None and labels is None and self.variable_magnitude_during_testing):
             a = torch.linalg.norm(features, ord=2, dim=1)
             logits = torch.mul(a.view(-1,1), cos_theta)
-        else:
+        else:  # fixed feature magnitude
             logits = self.s * cos_theta
+
         return logits
 
