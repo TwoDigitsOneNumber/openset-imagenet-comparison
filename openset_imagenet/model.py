@@ -67,7 +67,7 @@ class ResNet50(nn.Module):
                 out_features=out_features,
                 logit_bias=logit_bias,
                 s=64,
-                variable_magnitude_during_testing=True
+                variable_magnitude_during_testing=False
             )
         else:
             raise ValueError('Invalid input specified! logit_variant must be one of: "linear", "sphereface", "cosface", "arcface", "magface".')

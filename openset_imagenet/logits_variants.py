@@ -213,43 +213,6 @@ class MagFace(nn.Module):
         return logits
 
 
-class CosFaceWithNegatives(nn.Module):
-    """
-        CosFace implemented such that it ignores negative samples (data points with target < 0)
-
-        Taken from https://github.com/ydwen/opensphere/blob/main/model/head/cosface.py and adapted.
-        reference1: <CosFace: Large Margin Cosine Loss for Deep Face Recognition>
-        reference2: <Additive Margin Softmax for Face Verification>
-
-        logit_bias argument in constructor soley for compatibility.
-    """
-    def __init__(self, in_features, out_features, logit_bias, s=64., m=0.35):
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.s = s
-        self.m = m
-        self.w = nn.Parameter(torch.Tensor(in_features, out_features))
-        nn.init.xavier_normal_(self.w)
-
-    def forward(self, features, labels):
-        with torch.no_grad():
-            self.w.data = F.normalize(self.w.data, dim=0)
-
-        cos_theta = F.normalize(features, dim=1).mm(self.w)
-
-        with torch.no_grad():
-            if labels is not None:  # training time forward pass
-                # distinguish knowns from negatives/unknowns (via boolean mask)
-                unk_idx = labels < 0
-                kn_idx = ~unk_idx
-
-                cos_theta[kn_idx,:] = cos_theta[kn_idx,:].scatter(1, labels[kn_idx].view(-1, 1), -self.m, reduce='add')
-
-        logits = self.s * cos_theta
-        return logits
-
-
 class CosineMargin(nn.Module):
     """
         CosFace adapted with optional feature normalization and such that it ignores negative samples (data points with target < 0).

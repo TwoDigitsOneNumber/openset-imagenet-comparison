@@ -265,6 +265,44 @@ def plot_oscr(arrays, gt, scale='linear', title=None, ax_label_font=13, ax=None,
 
     return ax
 
+def training_scores_legend(losses, lines, line_colors, figure, **kwargs):
+    """Creates a legend with the different line style and colors"""
+    # add dummy plots for the different styles
+    from matplotlib.lines import Line2D
+
+    # create legend elements
+    empty_legend = Line2D([None], [None], marker=".", visible=False)
+    padding = len(lines) - len(losses)
+    a_padding = max(-padding,0)
+    l_padding = max(padding, 0)
+
+    # add legend elements with sufficient padding
+    legend_elements = \
+            [empty_legend]*(l_padding//2) + \
+            [Line2D([None], [None], linestyle=STYLES[loss], color="k") for loss in losses] + \
+            [empty_legend]*(l_padding//2 + l_padding%2) + \
+            [empty_legend]*(a_padding//2) + \
+            [Line2D([None], [None], linestyle="solid", color=line_colors[line]) for line in lines] + \
+            [empty_legend]*(a_padding//2 + + a_padding%2)
+
+    labels = \
+            [""] *(l_padding//2) + \
+            [NAMES[loss] for loss in losses] + \
+            [""]*(l_padding//2 + l_padding%2) + \
+            [""] *(a_padding//2) + \
+            lines + \
+            [""]*(a_padding//2 + + a_padding%2)
+
+    # re-order row-first to column-first
+    columns = max(len(lines), len(losses))
+
+    indexes = [i for j in range(columns) for i in (j, j+columns)]
+    legend_elements = [legend_elements[index] for index in indexes]
+    labels = [labels[index] for index in indexes]
+
+    figure.legend(handles=legend_elements, labels=labels, loc="lower center", ncol=columns, **kwargs)
+
+
 def oscr_legend(losses, algorithms, figure, **kwargs):
     """Creates a legend with the different line style and colors"""
     # add dummy plots for the different styles

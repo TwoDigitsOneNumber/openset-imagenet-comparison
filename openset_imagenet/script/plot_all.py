@@ -5,6 +5,7 @@ import multiprocessing
 import collections
 import subprocess
 import pathlib
+from pathlib import Path
 import openset_imagenet
 import os, sys
 import torch
@@ -18,6 +19,8 @@ from collections import defaultdict
 from matplotlib import pyplot, cm, colors
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import MaxNLocator, LogLocator
+
+from openset_imagenet.util import STYLES
 
 #def train_one(cmd):
 #  print(cmd)
@@ -92,6 +95,26 @@ def command_line_options(command_line_arguments=None):
     return args
 
 
+# TODO: use this function to plot training curves
+def load_training_scores(args, cfg):
+    # we sort them as follows: protocol, loss, algorithm
+    training_scores = defaultdict(lambda: defaultdict(dict))
+    for protocol in args.protocols:
+        for loss in args.losses:
+            output_directory = pathlib.Path(cfg.output_directory) / f"Protocol_{protocol}"
+            file_path = Path(output_directory) / f"{loss}_train_arr.npz"
+            # load data
+            if os.path.exists(file_path):
+                data = numpy.load(file_path)
+                for key in data.keys():  # keys are the data description, e.g., train_loss, val_conf_unk
+                    training_scores[protocol][loss][key] = data[key]
+            else:
+                logger.warning(f"Did not find file {file_path}")
+
+    return training_scores
+
+
+
 def load_scores(args, cfg):
     # collect all result files;
     suffix = "best" if args.use_best else "curr"
@@ -125,6 +148,79 @@ def load_scores(args, cfg):
     return scores, ground_truths
 
 
+def plot_training_scores(args, training_scores, pdf):
+    P = len(args.protocols)
+    fig = pyplot.figure(figsize=(12,3*P))
+    gs = fig.add_gridspec(P, 3, hspace=0.25, wspace=0.1)
+    axs = gs.subplots(sharex=True, sharey=False)
+    axs = axs.flat
+    font_size = 15
+    linewidth = 1.1
+
+    colors = cm.tab10(range(10))
+    lines = ['Training Loss', 'Validation Loss', 'Conf. Known', 'Conf. Unknown', 'Avg. Conf.']
+    LINE_COLORS = {line:colors[i] for i, line in enumerate(lines)}
+
+    # add lines to fig (index 0 for loss curves; index 1 for confidences)
+    for index, protocol in enumerate(args.protocols):
+
+        max_loss = 0
+
+        for loss_function, loss_function_arrays in training_scores[protocol].items():
+            epochs = loss_function_arrays['epochs']
+
+            # find max loss value of all losses per protocol
+            max_train_loss_curr = numpy.max(loss_function_arrays['train_loss'])
+            max_val_loss_curr = numpy.max(loss_function_arrays['val_loss'])
+            max_curr = max(max_train_loss_curr, max_val_loss_curr)
+            if max_curr > max_loss:
+                max_loss = max_curr
+
+            # plot loss curves on the left hand side
+            axs[2*index].plot(
+                epochs, loss_function_arrays['train_loss'],
+                linestyle=STYLES[loss_function], color=LINE_COLORS['Training Loss'], linewidth=linewidth)
+            axs[2*index].plot(
+                epochs, loss_function_arrays['val_loss'], 
+                linestyle=STYLES[loss_function], color=LINE_COLORS['Validation Loss'], linewidth=linewidth)
+            
+            # plot confidence curves on middle plot
+            axs[2*index+1].plot(
+                epochs, loss_function_arrays['val_conf_kn'],
+                linestyle=STYLES[loss_function], color=LINE_COLORS['Conf. Known'], linewidth=linewidth)
+            axs[2*index+1].plot(
+                epochs, loss_function_arrays['val_conf_unk'], 
+                linestyle=STYLES[loss_function], color=LINE_COLORS['Conf. Unknown'], linewidth=linewidth)
+
+            # plot avg confidence curves
+            axs[2*index+2].plot(
+                epochs, (loss_function_arrays['val_conf_unk']+loss_function_arrays['val_conf_kn'])*0.5, 
+                linestyle=STYLES[loss_function], color=LINE_COLORS['Avg. Conf.'], linewidth=linewidth)
+
+        # add titles
+        axs[2*index].set_title("Loss Curves", fontsize=13)
+        axs[2*index+1].set_title("Validation Confidence Curves", fontsize=13)
+        axs[2*index+2].set_title("Avg. Validation Confidence", fontsize=13)
+
+        # axis formating
+        axs[2*index].set_ylim(0,min(40, round(max_loss)))
+        axs[2*index+1].set_ylim(0,1)
+        axs[2*index+2].set_ylim(0,1)
+
+    # fugure labels
+    fig.text(0.5, -0.05, 'Epochs', ha='center', fontsize=font_size)
+    fig.text(0.08, 0.5, 'Loss', va='center', rotation='vertical', fontsize=font_size)
+    fig.text(0.92, 0.5, 'Confidence', va='center', rotation='vertical', fontsize=font_size)
+
+    
+    openset_imagenet.util.training_scores_legend(args.losses, lines, LINE_COLORS, fig,
+        bbox_to_anchor=(0.5,-0.3), handletextpad=0.6, columnspacing=1.5,
+        title="How to Read: Line Style -> Loss Function; Color -> What"
+    )
+
+    pdf.savefig(bbox_inches='tight', pad_inches = 0)
+
+
 def plot_OSCR(args, scores, ground_truths):
     # plot OSCR
     P = len(args.protocols)
@@ -146,13 +242,13 @@ def plot_OSCR(args, scores, ground_truths):
         ax.grid(axis='y', linestyle=':', linewidth=1, color='gainsboro')
 
     # Figure labels
-    fig.text(0.5, 0.06, 'FPR', ha='center', fontsize=font)
+    fig.text(0.5, -0.05, 'FPR', ha='center', fontsize=font)
     fig.text(0.04, 0.5, 'CCR', va='center', rotation='vertical', fontsize=font)
 
     # add legend
     openset_imagenet.util.oscr_legend(
         args.losses, args.algorithms, fig,
-        bbox_to_anchor=(0.5,-0.03), handletextpad=0.6, columnspacing=1.5,
+        bbox_to_anchor=(0.5,-0.3), handletextpad=0.6, columnspacing=1.5,
         title="How to Read: Line Style -> Loss; Color -> Algorithm"
     )
 
@@ -237,11 +333,11 @@ def plot_score_distributions(args, scores, ground_truths, pdf):
                            Line2D([None], [None], color=edge_negative),
                            Line2D([None], [None], color=edge_unknown)]
         legend_labels = ["Known", "Negative", "Unknown"]
-        fig.legend(handles=legend_elements, labels=legend_labels, loc="lower center", ncol=3, bbox_to_anchor=(0.3,0.0))
+        fig.legend(handles=legend_elements, labels=legend_labels, loc="lower center", ncol=3, bbox_to_anchor=(0.5,-0.3))
 
 
         # X label
-        fig.text(0.7, 0.01, f'{NAMES[loss]} Scores', ha='center', fontsize=font_size)
+        fig.text(0.5, -0.08, f'{NAMES[loss]} Scores', ha='center', fontsize=font_size)
 
         pdf.savefig(bbox_inches='tight', pad_inches = 0)
 
@@ -301,6 +397,7 @@ def main(command_line_arguments = None):
 
     print("Extracting and loading scores")
     scores, ground_truths = load_scores(args, cfg)
+    training_scores = load_training_scores(args, cfg)
 
     print("Writing file", args.plots)
     pdf = PdfPages(args.plots)
@@ -321,6 +418,10 @@ def main(command_line_arguments = None):
         # plot histograms
         print("Plotting score distribution histograms")
         plot_score_distributions(args, scores, ground_truths, pdf)
+
+        # plot training scores
+        print("Plotting training metrics")
+        plot_training_scores(args, training_scores, pdf)
     finally:
         pdf.close()
 

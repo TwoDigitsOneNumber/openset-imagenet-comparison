@@ -3,7 +3,7 @@ import time
 import sys
 import pathlib
 from collections import OrderedDict, defaultdict
-import numpy
+import numpy as np
 import torch
 from torch.optim import lr_scheduler
 from torch.utils.tensorboard import SummaryWriter
@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from vast.tools import set_device_gpu, set_device_cpu, device
 import vast
+from pathlib import Path
 from loguru import logger
 from .metrics import confidence, auc_score_binary, auc_score_multiclass
 from .dataset import ImagenetDataset
@@ -171,6 +172,10 @@ def get_arrays(model, loader, garbage, pretty=False):
             all_scores.numpy())
 
 
+def write_training_scores(epochs, val_conf_kn, val_conf_unk, train_loss, val_loss, loss_function, output_directory):
+    file_path = Path(output_directory) / f"{loss_function}_train_arr.npz"
+    np.savez(file_path, epochs=epochs, val_conf_kn=val_conf_kn, val_conf_unk=val_conf_unk, train_loss=train_loss, val_loss=val_loss)
+    logger.info(f"Validation loss, known and unknown confidences, and training loss saved in: {file_path}")
 
 
 def worker(cfg):
@@ -353,6 +358,14 @@ def worker(cfg):
     logger.info(log_info)
     writer = SummaryWriter(log_dir=cfg.output_directory, filename_suffix="-"+cfg.log_name)
 
+    # arrays for storing training scores
+    epochs = np.arange(START_EPOCH, cfg.epochs)
+    val_conf_kn  = np.full_like(epochs, fill_value=np.nan, dtype=np.single)
+    val_conf_unk = np.full_like(epochs, fill_value=np.nan, dtype=np.single)
+    train_loss   = np.full_like(epochs, fill_value=np.nan, dtype=np.single)
+    val_loss     = np.full_like(epochs, fill_value=np.nan, dtype=np.single)
+
+
     for epoch in range(START_EPOCH, cfg.epochs):
         epoch_time = time.time()
 
@@ -389,6 +402,12 @@ def worker(cfg):
         writer.add_scalar("val/conf_kn", v_metrics["conf_kn"].avg, epoch)
         writer.add_scalar("val/conf_unk", v_metrics["conf_unk"].avg, epoch)
 
+        # adding metrics to np arrays
+        val_conf_kn[epoch]  = v_metrics["conf_kn"].avg
+        val_conf_unk[epoch] = v_metrics["conf_unk"].avg
+        val_loss[epoch]     = v_metrics["j"].avg
+        train_loss[epoch]   = t_metrics["j"].avg
+
         #  training information on console
         # validation+metrics writer+save model time
         val_time = time.time() - train_time - epoch_time
@@ -422,6 +441,9 @@ def worker(cfg):
             if early_stopping.early_stop:
                 logger.info("early stop")
                 break
+
+    output_directory_train = Path(cfg.output_directory)
+    write_training_scores(epochs=epochs, val_conf_kn=val_conf_kn, val_conf_unk=val_conf_unk, val_loss=val_loss, train_loss=train_loss, loss_function=cfg.loss.type, output_directory=output_directory_train)
 
     # clean everything
     del model
