@@ -20,7 +20,7 @@ from matplotlib import pyplot, cm, colors
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import MaxNLocator, LogLocator
 
-from openset_imagenet.util import STYLES
+from openset_imagenet.util import STYLES, COLORS
 
 #def train_one(cmd):
 #  print(cmd)
@@ -95,7 +95,6 @@ def command_line_options(command_line_arguments=None):
     return args
 
 
-# TODO: use this function to plot training curves
 def load_training_scores(args, cfg):
     # we sort them as follows: protocol, loss, algorithm
     training_scores = defaultdict(lambda: defaultdict(dict))
@@ -212,10 +211,60 @@ def plot_training_scores(args, training_scores, pdf):
     fig.text(0.08, 0.5, 'Loss', va='center', rotation='vertical', fontsize=font_size)
     fig.text(0.92, 0.5, 'Confidence', va='center', rotation='vertical', fontsize=font_size)
 
-    
+    # add legend
     openset_imagenet.util.training_scores_legend(args.losses, lines, LINE_COLORS, fig,
         bbox_to_anchor=(0.5,-0.3), handletextpad=0.6, columnspacing=1.5,
         title="How to Read: Line Style -> Loss Function; Color -> What"
+    )
+
+    pdf.savefig(bbox_inches='tight', pad_inches = 0)
+
+
+def plot_CCR_FPR(args, scores, ground_truths, pdf):
+    """plot CCR and FPR separately as functions of the threshold."""
+    P = len(args.protocols)
+    fig = pyplot.figure(figsize=(12,3*P))
+    gs = fig.add_gridspec(P, 2, hspace=0.25, wspace=0.1)
+    axs = gs.subplots(sharex=True, sharey=False)
+    axs = axs.flat
+    font_size = 15
+    linewidth = 1.1
+
+    unk_label = -1
+
+    for index, protocol in enumerate(args.protocols):
+        for loss_function, loss_function_arrays in scores[protocol].items():
+            for algorithm, scores_array in loss_function_arrays.items():
+
+                ccr, fpr, thresholds = openset_imagenet.util.calculate_oscr(ground_truths[protocol], scores_array, unk_label, return_thresholds=True)
+
+                axs[2*index].plot(thresholds, ccr, 
+                    linestyle=STYLES[loss_function], color=COLORS[algorithm],
+                    linewidth=linewidth
+                )
+                axs[2*index+1].plot(thresholds, ccr, 
+                    linestyle=STYLES[loss_function], color=COLORS[algorithm],
+                    linewidth=linewidth
+                )
+
+        # add titles
+        axs[2*index].set_title("CCR", fontsize=font_size)
+        axs[2*index+1].set_title("FPR", fontsize=font_size)
+
+        # axis formating
+        axs[2*index].set_ylim(0,0.8)
+        axs[2*index+1].set_ylim(8*1e-5, 1.4)
+        axs[2*index+1].set_yscale('log')
+
+    # figure labels
+    fig.text(0.5, -0.05, 'Threshold', ha='center', fontsize=font_size)
+    fig.text(0.08, 0.5, 'CCR', va='center', rotation='vertical', fontsize=font_size)
+    fig.text(0.92, 0.5, 'FPR', va='center', rotation='vertical', fontsize=font_size)
+
+    # add legend
+    openset_imagenet.util.oscr_legend(args.losses, args.algorithms, fig,
+        bbox_to_anchor=(0.5,-0.3), handletextpad=0.6, columnspacing=1.5,
+        title="How to Read: Line Style -> Loss; Color -> Algorithm"
     )
 
     pdf.savefig(bbox_inches='tight', pad_inches = 0)
@@ -403,9 +452,11 @@ def main(command_line_arguments = None):
     pdf = PdfPages(args.plots)
     try:
         # plot OSCR (actually not required for best case)
-        print("Plotting OSCR curves")
+        print("Plotting OSCR curves, and CCR and FPR curves")
         plot_OSCR(args, scores, ground_truths)
         pdf.savefig(bbox_inches='tight', pad_inches = 0)
+
+        plot_CCR_FPR(args, scores, ground_truths, pdf)
 
         """
         if not args.linear and not args.use_best and not args.sort_by_loss:

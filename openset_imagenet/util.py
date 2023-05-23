@@ -91,7 +91,7 @@ def read_array_list(file_names):
     return arrays
 
 
-def calculate_oscr(gt, scores, unk_label=-1):
+def calculate_oscr(gt, scores, unk_label=-1, return_thresholds=False):
     """ Calculates the OSCR values, iterating over the score of the target class of every sample,
     produces a pair (ccr, fpr) for every score.
     Args:
@@ -132,7 +132,10 @@ def calculate_oscr(gt, scores, unk_label=-1):
 
     ccr = np.array(ccr)
     fpr = np.array(fpr)
-    return ccr, fpr
+    if return_thresholds:
+        return ccr, fpr, thresholds
+    else:
+        return ccr, fpr
 
 
 def ccr_at_fpr(gt, scores, fpr_values, unk_label=-1):
