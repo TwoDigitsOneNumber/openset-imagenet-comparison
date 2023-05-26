@@ -136,19 +136,19 @@ class LeNetBottleneck(nn.Module):
             # 28x28 -> 14x14
             nn.Conv2d(in_channels=1, out_channels=32, kernel_size=5, stride=1, padding='same'),
             nn.Conv2d(in_channels=32, out_channels=32, kernel_size=5, stride=1, padding='same'),
-            nn.BatchNorm1d(num_features=32),
+            nn.BatchNorm2d(num_features=32),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
             # 14x14 -> 7x7
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=5, stride=1, padding='same'),
             nn.Conv2d(in_channels=64, out_channels=64, kernel_size=5, stride=1, padding='same'),
-            nn.BatchNorm1d(num_features=64),
+            nn.BatchNorm2d(num_features=64),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
             # 7x7 -> 3x3
             nn.Conv2d(in_channels=64, out_channels=128, kernel_size=5, stride=1, padding='same'),
             nn.Conv2d(in_channels=128, out_channels=128, kernel_size=5, stride=1, padding='same'),
-            nn.BatchNorm1d(num_features=128),
+            nn.BatchNorm2d(num_features=128),
             nn.MaxPool2d(kernel_size=2, stride=2),
         )
 
