@@ -94,3 +94,35 @@ class ImagenetDataset(Dataset):
         counts = self.dataset.groupby(1).count().to_numpy()
         class_weights = (len(self.dataset) / (counts * self.label_count))
         return torch.from_numpy(class_weights).float().squeeze()
+
+
+
+class OSCToyDataset(ImagenetDataset):
+    """ OSC Toy example dataset. Consisting of MNIST (knowns), NIST (negatives), and Devanagari (unknowns; only in test set). MNIST and NIST are taken from EMNIST.
+
+    copied from openset_imagenet.dataset.ImagenetDataset and adapted.
+    """
+
+    # only function that needs to be (slightly) adapted, others stay identical to ImagenetDataset
+    def __getitem__(self, index):
+        """ Returns a tuple (image, label) of the dataset at the given index. If available, it
+        applies the defined transform to the image. Images are converted to RGB format.
+
+        Args:
+            index(int): Image index
+
+        Returns:
+            image, label: (image tensor, label tensor)
+        """
+        if torch.is_tensor(index):
+            index = index.tolist()
+
+        png_path, label = self.dataset.iloc[index]
+        image = Image.open(self.imagenet_path / png_path).convert("L")
+
+        if self.transform is not None:
+            image = self.transform(image)
+
+        # convert int label to tensor
+        label = torch.as_tensor(int(label), dtype=torch.int64)
+        return image, label

@@ -4,6 +4,36 @@ import torch.nn.functional as F
 import math
 
 
+def set_logits(logit_variant, in_features, out_features, logit_bias, **kwargs):
+    """return logits
+    
+    parameters:
+        logit_variant (str): type of logits to use
+        in_features (int): dimension of deep features, i.e., dimension of input for the logits 
+        out_features (int): output dimension of the logits
+        logit_bias (bool): currently only here for compatibility, has no effect
+
+        **kwargs: add other logit_variant specific parameters as keyword arguments. If not specified, the defaults of the logit class are used. Can be set to multiple arguments even if not all are available for all logits, e.g., when running 'cosface' and 'cosos' in parallel, can set 's' (which affects both since the parameter is called the same) and can also set 'variable_magnitude_during_testing' (which is only available for 'cosos' but does not break the call for 'cosface').
+            -> if a parameter should be set differently for different logit_variants, then the parameter must be renamed in the respective logit class to a distinct name
+    """
+
+    logit_picker = {
+        'linear': Linear,
+        'sphereface': SphereFace,
+        'cosface': CosFace,
+        'arcface': ArcFace,
+        'magface': MagFace,
+        'cosos': CosineMargin
+    }
+
+    return logit_picker[logit_variant](
+        in_features=in_features, 
+        out_features=out_features, 
+        logit_bias=logit_bias,
+        **kwargs
+    )
+
+
 class Linear(nn.Module):
     """Wrapper for compatibility of second argument of forward function."""
     def __init__(self, in_features, out_features, logit_bias):

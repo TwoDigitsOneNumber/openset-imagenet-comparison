@@ -115,12 +115,15 @@ def calculate_oscr(gt, scores, unk_label=-1, return_thresholds=False):
     correctly_predicted = pred_class == gt[kn]
     target_score = scores[kn][range(kn.sum()), gt[kn]]
 
+    # TODO: why are the scores only considered of the unknowns? because we plot only on the unknowns?
     # get maximum scores for unknown samples
     max_score = np.max(scores, axis=1)[unk]
 
     # Any max score can be a threshold
+    # TODO: add 0 to the thresholds? why are only unknowns considered? shouldn't it be: thresholds = np.unique(np.max(scores, axis=1))
     thresholds = np.unique(max_score)
 
+    # TODO: make strict inequalities (but possibly remove 1 from the thresholds to avoid weird uninformative lines?)
     #print(target_score) #HB
     for tau in thresholds:
         # compute CCR value

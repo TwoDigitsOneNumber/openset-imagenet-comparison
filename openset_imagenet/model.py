@@ -7,7 +7,7 @@ import random
 import numpy as np
 import pathlib
 import vast
-from .logits_variants import Linear, SphereFace, CosFace, ArcFace, MagFace, CosineMargin
+from .logits_variants import set_logits
 
 class ResNet50(nn.Module):
     """Represents a ResNet50 model"""
@@ -30,48 +30,12 @@ class ResNet50(nn.Module):
         fc_in_features = self.resnet_base.fc.in_features
         self.resnet_base.fc = nn.Linear(in_features=fc_in_features, out_features=fc_layer_dim)
 
-
-        if logit_variant == 'linear':
-            self.logits = Linear(
-                in_features=fc_layer_dim,
-                out_features=out_features,
-                logit_bias=logit_bias
-            )
-        elif logit_variant == 'sphereface':
-            self.logits = SphereFace(
-                in_features=fc_layer_dim,
-                out_features=out_features,
-                logit_bias=logit_bias
-            )
-        elif logit_variant in ['cosface']:
-            self.logits = CosFace(
-                in_features=fc_layer_dim,
-                out_features=out_features,
-                logit_bias=logit_bias
-            )
-        elif logit_variant == 'arcface':
-            self.logits = ArcFace(
-                in_features=fc_layer_dim,
-                out_features=out_features,
-                logit_bias=logit_bias
-            )
-        elif logit_variant == 'magface':
-            self.logits = MagFace(
-                in_features=fc_layer_dim,
-                out_features=out_features,
-                logit_bias=logit_bias
-            )
-        elif logit_variant in ['cosos']:
-            self.logits = CosineMargin(
-                in_features=fc_layer_dim,
-                out_features=out_features,
-                logit_bias=logit_bias,
-                s=64,
-                variable_magnitude_during_testing=False
-            )
-        else:
-            raise ValueError('Invalid input specified! logit_variant must be one of: "linear", "sphereface", "cosface", "arcface", "magface".')
-
+        self.logits = set_logits(
+            logit_variant=logit_variant,
+            in_features=fc_layer_dim,
+            out_features=out_features,
+            logit_bias=False
+        )
 
 
     def forward(self, image, labels):
@@ -84,9 +48,9 @@ class ResNet50(nn.Module):
         Returns:
             Logits and deep features of the samples.
         """
-        features = self.resnet_base(image)
-        logits = self.logits(features, labels)
-        return logits, features
+        deep_features = self.resnet_base(image)
+        logits = self.logits(deep_features, labels)
+        return logits, deep_features
 
 
 class ResNet50Proser(nn.Module):
@@ -153,6 +117,65 @@ class ResNet50Proser(nn.Module):
         """Extracts the logits, the dummy classiifers and the deep features for the given input """
         intermediate_features = self.first_blocks(image)
         return self.last_blocks(intermediate_features)
+
+
+class LeNetBottleneck(nn.Module):
+    """ Builds a LeNet model with deep features and logits, which includes a bottleneck in the deep features (deep_feature_dim). 
+
+    parameters: see ResNet50 in this file.
+    """
+
+    def __init__(self, deep_feature_dim=2, out_features=10, logit_bias=True, logit_variant='linear'):
+        super(LeNetBottleneck, self).__init__()
+
+        self.number_of_classes = out_features
+        self.deep_feature_dim = deep_feature_dim
+        self.logit_variant = logit_variant
+
+        self.feature_extractor = nn.Sequential(            
+            # 28x28 -> 14x14
+            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=5, stride=1, padding='same'),
+            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=5, stride=1, padding='same'),
+            nn.BatchNorm1d(num_features=32),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
+            # 14x14 -> 7x7
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=5, stride=1, padding='same'),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=5, stride=1, padding='same'),
+            nn.BatchNorm1d(num_features=64),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
+            # 7x7 -> 3x3
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=5, stride=1, padding='same'),
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=5, stride=1, padding='same'),
+            nn.BatchNorm1d(num_features=128),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+
+        self.deep_feature_extractor = nn.Sequential(
+            nn.Linear(128*3*3, self.deep_feature_dim)
+        )
+
+        self.logits = set_logits(
+            logit_variant=self.logit_variant,
+            in_features=self.deep_feature_dim,
+            out_features=self.number_of_classes,
+            logit_bias=False
+        )
+
+
+
+    def forward(self, image, labels):
+        x = self.feature_extractor(image)
+        x = torch.flatten(x, 1)
+        deep_features = self.deep_feature_extractor(x)
+        logits = self.logits(deep_features, labels)
+        return logits, deep_features
+
+
+
+
+
 
 def set_seeds(seed):
     """ Sets the seed for different sources of randomness.

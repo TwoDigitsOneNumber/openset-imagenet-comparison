@@ -15,8 +15,8 @@ import vast
 from pathlib import Path
 from loguru import logger
 from .metrics import confidence, auc_score_binary, auc_score_multiclass
-from .dataset import ImagenetDataset
-from .model import ResNet50, load_checkpoint, save_checkpoint, set_seeds
+from .dataset import ImagenetDataset, OSCToyDataset
+from .model import ResNet50, LeNetBottleneck, load_checkpoint, save_checkpoint, set_seeds
 from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, MagFaceLoss, ObjectosphereLossWrapper
 import tqdm
 
@@ -200,32 +200,53 @@ def worker(cfg):
         mode='w')
 
     # Set image transformations
-    train_tr = transforms.Compose(
-        [transforms.Resize(256),
-         transforms.RandomCrop(224),
-         transforms.RandomHorizontalFlip(0.5),
-         transforms.ToTensor()])
+    if cfg.protocol == 0:  # toy protocol
+        train_tr = transforms.Compose([
+            transforms.ToTensor()
+        ])
+        val_tr = transforms.Compose([
+            transforms.ToTensor()
+        ])
 
-    val_tr = transforms.Compose(
-        [transforms.Resize(256),
-         transforms.CenterCrop(224),
-         transforms.ToTensor()])
+    else:  # normal protocols (1-3)
+        train_tr = transforms.Compose(
+            [transforms.Resize(256),
+            transforms.RandomCrop(224),
+            transforms.RandomHorizontalFlip(0.5),
+            transforms.ToTensor()])
+
+        val_tr = transforms.Compose(
+            [transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor()])
 
     # create datasets
     train_file = pathlib.Path(cfg.data.train_file.format(cfg.protocol))
     val_file = pathlib.Path(cfg.data.val_file.format(cfg.protocol))
 
     if train_file.exists() and val_file.exists():
-        train_ds = ImagenetDataset(
-            csv_file=train_file,
-            imagenet_path=cfg.data.imagenet_path,
-            transform=train_tr
-        )
-        val_ds = ImagenetDataset(
-            csv_file=val_file,
-            imagenet_path=cfg.data.imagenet_path,
-            transform=val_tr
-        )
+        if cfg.protocol == 0:  # toy protocol
+            train_ds = OSCToyDataset(
+                csv_file=train_file,
+                imagenet_path=cfg.data.osc_toy_path,
+                transform=train_tr
+            )
+            val_ds = OSCToyDataset(
+                csv_file=val_file,
+                imagenet_path=cfg.data.osc_toy_path,
+                transform=val_tr
+            )
+        else:  # main protocols (1-3)
+            train_ds = ImagenetDataset(
+                csv_file=train_file,
+                imagenet_path=cfg.data.imagenet_path,
+                transform=train_tr
+            )
+            val_ds = ImagenetDataset(
+                csv_file=val_file,
+                imagenet_path=cfg.data.imagenet_path,
+                transform=val_tr
+            )
 
         # If using garbage class, replaces label -1 to maximum label + 1
         if cfg.loss.type == "garbage":
@@ -282,7 +303,7 @@ def worker(cfg):
         # We select entropic loss using the unknown class weights from the config file
         loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
     elif cfg.loss.type == 'cosos':
-        loss = ObjectosphereLossWrapper(torch.nn.CrossEntropyLoss(ignore_index=-1), lambda_os=0.01, xi=64.)
+        loss = ObjectosphereLossWrapper(torch.nn.CrossEntropyLoss(ignore_index=-1), lambda_os=0.01, xi=9.)
     elif cfg.loss.type == "magface":
         loss = MagFaceLoss()
     elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface"]:
@@ -293,7 +314,7 @@ def worker(cfg):
         class_weights = device(train_ds.calculate_class_weights())
         loss = torch.nn.CrossEntropyLoss(weight=class_weights)
 
-    # select logit variant (should be specified vie command line arguments for the loss functions)
+    # TODO: select logit variant (should be specified vie command line arguments for the loss functions)
     if cfg.loss.type in ["sphereface", "cosface", "arcface", "magface", 'cosos', 'coseos']:
         logit_variant = cfg.loss.type
     else:
@@ -301,10 +322,20 @@ def worker(cfg):
 
 
     # Create the model
-    model = ResNet50(fc_layer_dim=n_classes,
-                     out_features=n_classes,
-                     logit_bias=False,
-                     logit_variant=logit_variant)
+    if cfg.protocol == 0:  # toy protocol
+        model = LeNetBottleneck(
+            deep_feature_dim=2,
+            out_features=n_classes,
+            logit_bias=False,
+            logit_variant=logit_variant
+        )
+    else:  # main protocols (1-3)
+        model = ResNet50(
+            fc_layer_dim=n_classes,
+            out_features=n_classes,
+            logit_bias=False,
+            logit_variant=logit_variant
+        )
     device(model)
 
     # Create optimizer

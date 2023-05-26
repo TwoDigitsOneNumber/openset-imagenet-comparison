@@ -27,10 +27,10 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
         "--protocols", "-p",
         type=int,
-        choices = (1,2,3),
+        choices = (1,2,3,0),
         nargs="+",
         default = (3,1,2),
-        help="Select the protocols that should be executed"
+        help="Select the protocols that should be executed, 0 is the toy data (EMNIST + Devanagari)."
     )
     parser.add_argument(
       "--loss-functions", "-l",
@@ -103,7 +103,8 @@ def commands(args):
         os.makedirs(outdir, exist_ok=True)
         open(config_file, "w").write(config.dump())
 
-        call = ["train_imagenet.py", config_file, str(protocol), "--nice", str(args.nice)]
+        call = [f"train_imagenet.py", config_file, str(protocol), "--nice", str(args.nice)]
+
         if args.gpus is not None:
           call += ["--gpu", str(args.gpus[gpu])]
           processes[gpu].append(call)
