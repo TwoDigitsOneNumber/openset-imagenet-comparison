@@ -117,20 +117,20 @@ def main():
     print("========== Evaluating ==========")
     print("Validation data:")
     # extracting arrays for validation
-    gt, logits, features, scores = openset_imagenet.train.get_arrays(
+    gt, logits, features, scores, angles = openset_imagenet.train.get_arrays(
         model=model,
         loader=val_loader
     )
     file_path = args.output_directory / f"{args.loss}_val_arr{suffix}.npz"
-    np.savez(file_path, gt=gt, logits=logits, features=features, scores=scores)
+    np.savez(file_path, gt=gt, logits=logits, features=features, scores=scores, angles=angles)
     print(f"Target labels, logits, features and scores saved in: {file_path}")
 
     # extracting arrays for test
     print("Test data:")
-    gt, logits, features, scores = openset_imagenet.train.get_arrays(
+    gt, logits, features, scores, angles = openset_imagenet.train.get_arrays(
         model=model,
         loader=test_loader
     )
     file_path = args.output_directory / f"{args.loss}_test_arr{suffix}.npz"
-    np.savez(file_path, gt=gt, logits=logits, features=features, scores=scores)
+    np.savez(file_path, gt=gt, logits=logits, features=features, scores=scores, angles=angles)
     print(f"Target labels, logits, features and scores saved in: {file_path}")

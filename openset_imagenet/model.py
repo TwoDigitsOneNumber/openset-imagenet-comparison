@@ -1,6 +1,7 @@
 """ ResNet50, parts taken from VAST: https://github.com/Vastlab/vast/tree/main/vast/architectures"""
 from torchvision import models
 from torch.nn.parallel import DistributedDataParallel
+import torch.nn.functional as F
 import torch
 from torch import nn
 import random
@@ -38,19 +39,27 @@ class ResNet50(nn.Module):
         )
 
 
-    def forward(self, image, labels):
+    def forward(self, image, labels, return_angles=False):
         """ Forward pass
 
         Args:
             image(tensor): Tensor with input samples
             labels(tensor): Labels for the input samples (needed for margin computation in 'face losses')
+            return_angles(bool): set true to return angles of input data (i.e. its deep feature) and all class centers.
 
         Returns:
             Logits and deep features of the samples.
         """
         deep_features = self.resnet_base(image)
         logits = self.logits(deep_features, labels)
-        return logits, deep_features
+        if return_angles:
+            # compute angles
+            with torch.no_grad():
+                cos_theta = F.normalize(deep_features).mm(F.normalize(self.logits.w, dim=0))
+                angles = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
+            return logits, deep_features, angles
+        else:
+            return logits, deep_features
 
 
 class ResNet50Proser(nn.Module):
@@ -164,17 +173,29 @@ class LeNetBottleneck(nn.Module):
         )
 
 
+    def forward(self, image, labels, return_angles=False):
+        """ Forward pass
 
-    def forward(self, image, labels):
+        Args:
+            image(tensor): Tensor with input samples
+            labels(tensor): Labels for the input samples (needed for margin computation in 'face losses')
+            return_angles(bool): set true to return angles of input data (i.e. its deep feature) and all class centers.
+
+        Returns:
+            Logits and deep features of the samples.
+        """
         x = self.feature_extractor(image)
         x = torch.flatten(x, 1)
         deep_features = self.deep_feature_extractor(x)
         logits = self.logits(deep_features, labels)
-        return logits, deep_features
-
-
-
-
+        if return_angles:
+            # compute angles
+            with torch.no_grad():
+                cos_theta = F.normalize(deep_features).mm(F.normalize(self.logits.w, dim=0))
+                angles = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
+            return logits, deep_features, angles
+        else:
+            return logits, deep_features
 
 
 def set_seeds(seed):

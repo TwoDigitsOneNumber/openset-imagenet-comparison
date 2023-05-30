@@ -178,7 +178,7 @@ def process_model(protocol, loss, algorithm, cfg, thresholds, suffix, gpu):
 
     # extract features
     logger.info(f"Extracting base scores for protocol {protocol}, {loss}")
-    gt, logits, features, scores = extract(base_model, val_loader, "threshold", loss)
+    gt, logits, features, scores, angles = extract(base_model, val_loader, "threshold", loss)
     # remove model from GPU memory
     del base_model
 

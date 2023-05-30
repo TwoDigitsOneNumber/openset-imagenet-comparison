@@ -10,6 +10,8 @@ from torch.utils.data import DataLoader
 import openset_imagenet
 import pickle
 from openset_imagenet.openmax_evm import compute_adjust_probs, compute_probs, get_param_string
+from openset_imagenet.dataset import ImagenetDataset, OSCToyDataset
+from openset_imagenet.model import ResNet50, LeNetBottleneck
 from loguru import logger
 
 def command_line_options(command_line_arguments=None):
@@ -29,9 +31,9 @@ def command_line_options(command_line_arguments=None):
         "--protocols", "-p",
         type = int,
         nargs = "+",
-        choices = (1,2,3),
+        choices = (1,2,3,0),
         default = (2,1,3),
-        help = "Which protocols to evaluate"
+        help = "Which protocols to evaluate. Set 0 for toy data."
     )
     parser.add_argument(
         "--algorithms", "-a",
@@ -73,17 +75,28 @@ def command_line_options(command_line_arguments=None):
     return args
 
 def dataset(cfg, protocol):
-    # Create transformations
-    transform = tf.Compose(
-        [tf.Resize(256),
-         tf.CenterCrop(224),
-         tf.ToTensor()])
 
-    # We only need test data here, since we assume that parameters have been selected
-    test_dataset = openset_imagenet.ImagenetDataset(
-        csv_file=cfg.data.test_file.format(protocol),
-        imagenet_path=cfg.data.imagenet_path,
-        transform=transform)
+    # Create transformations
+    if protocol == 0:  # toy data
+        transform = tf.Compose([
+            tf.ToTensor()
+        ])
+
+        test_dataset = OSCToyDataset(
+            csv_file=cfg.data.test_file.format(protocol),
+            imagenet_path=cfg.data.osc_toy_path,
+            transform=transform)
+    else:  # main protocols
+        transform = tf.Compose(
+            [tf.Resize(256),
+            tf.CenterCrop(224),
+            tf.ToTensor()])
+
+        # We only need test data here, since we assume that parameters have been selected
+        test_dataset = ImagenetDataset(
+            csv_file=cfg.data.test_file.format(protocol),
+            imagenet_path=cfg.data.imagenet_path,
+            transform=transform)
 
     # Info on console
     logger.info(f"Loaded test dataset for protocol {protocol} with len:{len(test_dataset)}, labels:{test_dataset.label_count}")
@@ -112,10 +125,17 @@ def load_model(cfg, loss, algorithm, protocol, suffix, output_directory, n_class
 
         model_path = opt.output_model_path.format(output_directory, loss, algorithm, popt.epochs, popt.dummy_count, suffix)
     else:
-        model = openset_imagenet.ResNet50(
-            fc_layer_dim=n_classes,
-            out_features=n_classes,
-            logit_bias=False)
+        if protocol == 0:  # toy data
+            model = LeNetBottleneck(
+                deep_feature_dim=2,
+                fc_layer_dim=n_classes,
+                out_features=n_classes,
+                logit_bias=False)
+        else:  # main protocols
+            model = ResNet50(
+                fc_layer_dim=n_classes,
+                out_features=n_classes,
+                logit_bias=False)
 
         model_path = cfg.model_path.format(output_directory, loss, "threshold", suffix)
 
@@ -173,10 +193,10 @@ def post_process(gt, logits, features, scores, cfg, protocol, loss, algorithm, o
         logger.info("computing probabilities for evm")
         return compute_probs(gt, logits, features, scores, model_dict, "evm", gpu, hyperparams)
 
-def write_scores(gt, logits, features, scores, loss, algorithm, suffix, output_directory):
+def write_scores(gt, logits, features, scores, loss, algorithm, suffix, output_directory, angles):
     file_path = Path(output_directory) / f"{loss}_{algorithm}_test_arr_{suffix}.npz"
-    np.savez(file_path, gt=gt, logits=logits, features=features, scores=scores)
-    logger.info(f"Target labels, logits, features and scores saved in: {file_path}")
+    np.savez(file_path, gt=gt, logits=logits, features=features, scores=scores, angles=angles)
+    logger.info(f"Target labels, logits, features, scores, and angles saved in: {file_path}")
 
 def load_scores(loss, algorithm, suffix, output_directory):
     file_path = Path(output_directory) / f"{loss}_{algorithm}_test_arr_{suffix}.npz"
@@ -206,6 +226,8 @@ def process_model(protocol, loss, algorithms, cfg, suffix, gpu, force):
         n_classes = test_dataset.label_count - 2  # number of classes - 2 when training was without garbage class
     
     if any(a!="proser" for a in algorithms):
+
+        # evaluate model (if force) or load scores
         base_data = None if force else load_scores(loss, "threshold", suffix, output_directory)
         if base_data is None:
             logger.info(f"Loading base model for protocol {protocol}, {loss}")
@@ -214,14 +236,15 @@ def process_model(protocol, loss, algorithms, cfg, suffix, gpu, force):
             if base_model is not None:
                 # extract features
                 logger.info(f"Extracting base scores for protocol {protocol}, {loss}")
-                gt, logits, features, base_scores = extract(base_model, test_loader, "threshold", loss)
-                write_scores(gt, logits, features, base_scores, loss, "threshold", suffix, output_directory)
+                gt, logits, features, base_scores, angles = extract(base_model, test_loader, "threshold", loss)
+                write_scores(gt, logits, features, base_scores, loss, "threshold", suffix, output_directory, angles)
                 # remove model from GPU memory
                 del base_model
         else:
             logger.info("Using previously computed features")
             gt, logits, features, base_scores = base_data["gt"], base_data["logits"], base_data["features"], base_data["scores"]
 
+        # 
         for algorithm in algorithms:
             if algorithm not in ("proser", "threshold"):
                 logger.info(f"Post-processing scores for protocol {protocol}, {loss} with {algorithm}")
@@ -238,7 +261,7 @@ def process_model(protocol, loss, algorithms, cfg, suffix, gpu, force):
                     if proser_model is not None:
                         # and extract features using that model
                         logger.info(f"Extracting proser scores for protocol {protocol}, {loss}")
-                        proser_gt, proser_logits, proser_features, proser_scores = extract(proser_model, test_loader, "proser", loss)
+                        proser_gt, proser_logits, proser_features, proser_scores, proser_angles = extract(proser_model, test_loader, "proser", loss)
                         write_scores(proser_gt, proser_logits, proser_features, proser_scores, loss, "proser", suffix, output_directory)
                         del proser_model
                 else:

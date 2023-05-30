@@ -143,6 +143,7 @@ def get_arrays(model, loader, garbage, pretty=False):
         all_logits = torch.empty((data_len, logits_dim), device="cpu")   # store all logits
         all_feat = torch.empty((data_len, features_dim), device="cpu")   # store all features
         all_scores = torch.empty((data_len, logits_dim), device="cpu")
+        all_angles = torch.empty((data_len, logits_dim), device="cpu")   # store all angles
 
         index = 0
         if pretty:
@@ -151,7 +152,7 @@ def get_arrays(model, loader, garbage, pretty=False):
             curr_b_size = labels.shape[0]  # current batch size, very last batch has different value
             images = device(images)
             labels = device(labels)
-            logits, feature = model(images, None)
+            logits, features, angles = model(images, None, return_angles=True)
             # compute softmax scores
             scores = torch.nn.functional.softmax(logits, dim=1)
             # shall we remove the logits of the unknown class?
@@ -162,14 +163,16 @@ def get_arrays(model, loader, garbage, pretty=False):
             # accumulate results in all_tensor
             all_targets[index:index + curr_b_size] = labels.detach().cpu()
             all_logits[index:index + curr_b_size] = logits.detach().cpu()
-            all_feat[index:index + curr_b_size] = feature.detach().cpu()
+            all_feat[index:index + curr_b_size] = features.detach().cpu()
             all_scores[index:index + curr_b_size] = scores.detach().cpu()
+            all_angles[index:index + curr_b_size] = angles.detach().cpu()
             index += curr_b_size
         return(
             all_targets.numpy(),
             all_logits.numpy(),
             all_feat.numpy(),
-            all_scores.numpy())
+            all_scores.numpy(),
+            all_angles.numpy())
 
 
 def write_training_scores(epochs, val_conf_kn, val_conf_unk, train_loss, val_loss, loss_function, output_directory):

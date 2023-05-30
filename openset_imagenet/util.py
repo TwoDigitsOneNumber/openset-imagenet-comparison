@@ -347,6 +347,58 @@ def oscr_legend(losses, algorithms, figure, **kwargs):
     figure.legend(handles=legend_elements, labels=labels, loc="lower center", ncol=columns, **kwargs)
 
 
+def get_feature_magnitude_distribution(features, gt):
+    known_idx = gt >= 0
+    unknown_idx = gt == -2
+    negative_idx = gt == -1
+
+    knowns = np.linalg.norm(features[known_idx, :], ord=2, axis=1)
+    unknowns = np.linalg.norm(features[unknown_idx, :], ord=2, axis=1)
+    negatives = np.linalg.norm(features[negative_idx, :], ord=2, axis=1)
+
+    bins = 300
+
+    distributions = {}
+    distributions['knowns'] = np.histogram(knowns, bins=bins)
+    distributions['unknowns'] = np.histogram(unknowns, bins=bins)
+    distributions['negatives'] = np.histogram(negatives, bins=bins)
+
+    return distributions
+
+
+def get_angle_pair_distributions(angles, gt):
+    gt = gt.astype(int)
+    known_idx = gt >= 0
+    unknown_idx = gt == -2
+    negative_idx = gt == -1
+
+    knowns = angles[known_idx, :]
+    unknowns = angles[unknown_idx, :]
+    negatives = angles[negative_idx, :]
+
+    # split the angle to the true known class from the angles to all other classes
+    known_class_idx = gt[gt >= 0]
+    # bool_idx = np.full_like(knowns, False).astype(bool)
+    # bool_idx[np.arange(knowns.shape[0]), known_class_idx] = True
+    angle_true_known_class = knowns[np.arange(knowns.shape[0]), known_class_idx]
+    angles_other_known_classes = []
+    # for each row pick all elements except the one of the true class
+    for i in np.arange(knowns.shape[0]):
+        bool_idx = np.ones_like(knowns[i,:])
+        bool_idx[gt[i]] = 0
+        angles_other_known_classes.append(knowns[i, bool_idx.astype(bool)])
+    angles_other_known_classes = np.array(angles_other_known_classes)
+
+    bins = 100
+
+    distributions = {}
+    distributions['known_true'] = np.histogram(angle_true_known_class, bins=bins)
+    distributions['known_smallest'] = np.histogram(np.min(angles_other_known_classes, axis=1), bins=bins)
+    distributions['unknown_smallest'] = np.histogram(np.min(unknowns, axis=1), bins=bins)
+    distributions['negative_smallest'] = np.histogram(np.min(negatives, axis=1), bins=bins)
+
+    return distributions
+
 
 def get_histogram(scores,
                   gt,
