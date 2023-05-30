@@ -381,13 +381,21 @@ def plot_CCR_FPR(args, scores, ground_truths, pdf):
     font_size = 15
     linewidth = 1.1
 
+    # TODO: currently only plotted on negatives, also plot for unknowns
+
     unk_label = -1
 
     for index, protocol in enumerate(args.protocols):
+
+        max_ccr = 0.8
+
         for loss_function, loss_function_arrays in scores[protocol].items():
             for algorithm, scores_array in loss_function_arrays.items():
 
                 ccr, fpr, thresholds = openset_imagenet.util.calculate_oscr(ground_truths[protocol], scores_array, unk_label, return_thresholds=True)
+                max_ccr_curr = numpy.amax(ccr)
+                if max_ccr_curr > max_ccr:
+                    max_ccr = max_ccr_curr
 
                 axs[2*index].plot(thresholds, ccr, 
                     linestyle=STYLES[loss_function], color=COLORS[algorithm],
@@ -403,7 +411,7 @@ def plot_CCR_FPR(args, scores, ground_truths, pdf):
         axs[2*index+1].set_title("FPR", fontsize=font_size)
 
         # axis formating
-        axs[2*index].set_ylim(0,0.8)
+        axs[2*index].set_ylim(0,min(max_ccr*1.1, 0.8))
         axs[2*index+1].set_ylim(8*1e-5, 1.4)
         axs[2*index+1].set_yscale('log')
 
@@ -658,10 +666,11 @@ def main(command_line_arguments = None):
     pdf = PdfPages(args.plots)
     try:
         # plot OSCR (actually not required for best case)
-        print("Plotting OSCR curves, and CCR and FPR curves")
+        print("Plotting OSCR curves")
         plot_OSCR(args, scores, ground_truths)
         pdf.savefig(bbox_inches='tight', pad_inches = 0)
 
+        print("Plotting CCR and FPR curves")
         plot_CCR_FPR(args, scores, ground_truths, pdf)
 
         """

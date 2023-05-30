@@ -106,7 +106,7 @@ class OSCToyDataset(ImagenetDataset):
     # only function that needs to be (slightly) adapted, others stay identical to ImagenetDataset
     def __getitem__(self, index):
         """ Returns a tuple (image, label) of the dataset at the given index. If available, it
-        applies the defined transform to the image. Images are converted to RGB format.
+        applies the defined transform to the image.
 
         Args:
             index(int): Image index
@@ -118,7 +118,7 @@ class OSCToyDataset(ImagenetDataset):
             index = index.tolist()
 
         png_path, label = self.dataset.iloc[index]
-        image = Image.open(self.imagenet_path / png_path).convert("L")
+        image = Image.open(self.imagenet_path / png_path)
 
         if self.transform is not None:
             image = self.transform(image)
