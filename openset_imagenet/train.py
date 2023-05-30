@@ -86,7 +86,6 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
         unknown_class = -1
         last_valid_class = None
 
-
     model.eval()
     with torch.no_grad():
         data_len = len(data_loader.dataset)  # size of dataset
@@ -96,7 +95,7 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
         for i, (images, labels) in enumerate(data_loader):
             batch_len = labels.shape[0]  # current batch size, last batch has different value
             images = device(images)
-            labels = device(labels)
+            labels = device(labels)  # TODO: following case gets stuck here (train_imagenet_all.py -p 0 -a threshold -l entropic -g 7)
             logits, features = model(images, None)
             scores = torch.nn.functional.softmax(logits, dim=1)
 
@@ -205,9 +204,11 @@ def worker(cfg):
     # Set image transformations
     if cfg.protocol == 0:  # toy protocol
         train_tr = transforms.Compose([
+            transforms.RandomCrop(28),
             transforms.ToTensor()
         ])
         val_tr = transforms.Compose([
+            transforms.RandomCrop(28),
             transforms.ToTensor()
         ])
 
@@ -274,7 +275,7 @@ def worker(cfg):
         batch_size=cfg.batch_size,
         shuffle=False,
         num_workers=cfg.workers,
-        pin_memory=True,)
+        pin_memory=True)
 
     # setup device
     if cfg.gpu is not None:

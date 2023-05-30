@@ -79,6 +79,8 @@ def dataset(cfg, protocol):
     # Create transformations
     if protocol == 0:  # toy data
         transform = tf.Compose([
+            tf.Resize(28),
+            # tf.CenterCrop(28),
             tf.ToTensor()
         ])
 
@@ -128,7 +130,6 @@ def load_model(cfg, loss, algorithm, protocol, suffix, output_directory, n_class
         if protocol == 0:  # toy data
             model = LeNetBottleneck(
                 deep_feature_dim=2,
-                fc_layer_dim=n_classes,
                 out_features=n_classes,
                 logit_bias=False)
         else:  # main protocols

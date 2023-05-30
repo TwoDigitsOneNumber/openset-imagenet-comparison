@@ -182,7 +182,8 @@ STYLES = {
     "coseos": "solid",
     "p1": "dashed",
     "p2": "dotted",
-    "p3": "solid"
+    "p3": "solid",
+    "p0": "dashdot"
 }
 
 NAMES = {
@@ -203,9 +204,11 @@ NAMES = {
     "p1": "P_1",
     "p2": "P_2",
     "p3": "P_3",
+    "p0": "P_0",
     1: "$P_1$",
     2: "$P_2$",
-    3: "$P_3$"
+    3: "$P_3$",
+    0: "$P_0$"
 }
 
 def plot_single_oscr(fpr, ccr, ax, loss, algorithm, scale):

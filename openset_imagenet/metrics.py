@@ -26,8 +26,10 @@ def confidence(scores, target_labels, offset=0., unknown_class = -1, last_valid_
         known = torch.logical_and(target_labels >= 0, ~unknown)
         kn_count = sum(known).item()    # Total known samples in data
         neg_count = sum(unknown).item()  # Total negative samples in data
+
         kn_conf = 0.0
         neg_conf = 0.0
+
         if kn_count:
             # Average confidence known samples
             kn_conf = torch.sum(scores[known, target_labels[known]]).item() / kn_count
@@ -38,6 +40,7 @@ def confidence(scores, target_labels, offset=0., unknown_class = -1, last_valid_
                 + offset
                 - torch.max(scores[unknown,:last_valid_class], dim=1)[0]
             ).item() / neg_count
+        # TODO: remove
 
     return kn_conf, kn_count, neg_conf, neg_count
 

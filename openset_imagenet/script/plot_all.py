@@ -37,10 +37,10 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
         "--protocols", "-p",
         type=int,
-        choices = (1,2,3),
+        choices = (1,2,3,0),
         nargs="+",
         default = (1,2,3),
-        help="Select the protocols that should be evaluated"
+        help="Select the protocols that should be evaluated. Set 0 for toy data."
     )
     parser.add_argument(
         "--losses", "-l",
@@ -311,8 +311,6 @@ def plot_angle_pair_distributions(args, angles, ground_truths, pdf):
     font_size = 15
     linewidth = 1.1
 
-    unk_label = -1
-
     # Manual colors
     category_color = {
         'known_true': colors.to_rgba('tab:blue', 1),
@@ -480,7 +478,8 @@ def plot_score_distributions(args, scores, ground_truths, pdf):
         fig = pyplot.figure(figsize=(3*A+1, 2*P))
         gs = fig.add_gridspec(P, A, hspace=0.2, wspace=0.08)
         axs = gs.subplots(sharex=False, sharey=False)
-        axs = axs.flat
+        if P>1 or A>1:
+            axs = axs.flat
 
         for p, protocol in enumerate(args.protocols):
 
@@ -501,7 +500,10 @@ def plot_score_distributions(args, scores, ground_truths, pdf):
                 # else:
                 #     ax = axs
 
-                ax = axs[2*p+a]
+                if P==1 and A==1:
+                    ax = axs
+                else:
+                    ax = axs[2*p+a]
 
                 if scores[protocol][loss][algorithm] is not None:
                     histograms = openset_imagenet.util.get_histogram(
@@ -577,6 +579,66 @@ def ccr_table(args, scores, gt):
                 f.write("\\hline\n")
 
 
+def plot_feature_distributions(args, features, ground_truths, pdf):
+    """plot deep features."""
+    algs = [a for a in args.algorithms if a != 'maxlogits']
+    A = len(algs)
+
+    clrs = cm.tab10(range(10))
+    color_map = {i:clrs[i] for i in range(10) if i!=7}  # use tab10 colors except gray
+    color_map[7] = 'teal'
+    color_map[-1] = 'gray'
+    color_map[-2] = 'black'
+
+    target_colors = [color_map[i] for i in ground_truths[0]]
+
+    known_only_idx = ground_truths[0] >= 0
+    known_with_unknown_idx = numpy.logical_or(ground_truths[0] == -2, known_only_idx)
+    known_with_negative_idx = numpy.logical_or(ground_truths[0] == -1, known_only_idx)
+    subsets = [known_only_idx, known_with_negative_idx, known_with_unknown_idx]
+    S = len(subsets)
+
+    for loss in args.losses:
+
+        fig = pyplot.figure(figsize=(4*S,4*A))
+        gs = fig.add_gridspec(A, 3, hspace=0.25, wspace=0.1)
+        axs = gs.subplots(sharex=True, sharey=False)
+        # if A>1:
+        # axs = axs.flat
+        font_size = 15
+        linewidth = 1.1
+
+        for a, algorithm in enumerate(algs):
+
+            assert features[0][loss][algorithm].shape[1] == 2, "Deep features must be 2D vectors."
+
+            abs_max = numpy.amax(numpy.abs(features[0][loss][algorithm]))
+            abs_max *= 1.1  # add 10% margin
+
+            # plot without knowns negatives and without unknowns, with negatives, and only with unknowns
+            for i, subset in enumerate(subsets):
+                # if A==1:
+                #     ax = axs
+                # else:
+                ax = axs[2*a+i]
+
+                ax.scatter(
+                    x=features[0][loss][algorithm][:,0][subset],
+                    y=features[0][loss][algorithm][:,1][subset],
+                    c=[target_colors[k] for k in numpy.arange(len(target_colors)) if subset[k]],
+                    s = 15,
+                    linewidth=linewidth,
+                    alpha=.2,
+                    marker='.'
+                )
+
+            ax.set_xlim((-abs_max, abs_max))
+            ax.set_ylim((-abs_max, abs_max))
+            
+        pdf.savefig(bbox_inches='tight', pad_inches = 0)
+
+
+
 def main(command_line_arguments = None):
     args = command_line_options(command_line_arguments)
     cfg = openset_imagenet.util.load_yaml(args.configuration)
@@ -625,6 +687,10 @@ def main(command_line_arguments = None):
         # plot training scores
         print("Plotting training metrics")
         plot_training_scores(args, training_scores, pdf)
+
+        if 0 in args.protocols:
+            print("Plotting deep feature distributions")
+            plot_feature_distributions(args, features, ground_truths, pdf)
     finally:
         pdf.close()
 
