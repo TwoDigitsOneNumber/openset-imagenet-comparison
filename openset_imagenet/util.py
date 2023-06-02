@@ -123,7 +123,6 @@ def calculate_oscr(gt, scores, unk_label=-1, return_thresholds=False):
     # TODO: add 0 to the thresholds? why are only unknowns considered? shouldn't it be: thresholds = np.unique(np.max(scores, axis=1))
     thresholds = np.unique(max_score)
 
-    # TODO: make strict inequalities (but possibly remove 1 from the thresholds to avoid weird uninformative lines?)
     #print(target_score) #HB
     for tau in thresholds:
         # compute CCR value
@@ -178,7 +177,9 @@ STYLES = {
     "cosface": "dashdot",
     "arcface": "dotted",
     "magface": "solid",
-    "cosos": "dotted",
+    "cosos-v": "dotted",
+    "cosos-f": "dashdot",
+    "cosos-m": "solid",
     "coseos": "solid",
     "p1": "dashed",
     "p2": "dotted",
@@ -199,7 +200,9 @@ NAMES = {
     "cosface": "CosFace",
     "arcface": "ArcFace",
     "magface": "MagFace",
-    "cosos": "CosOS",
+    "cosos-v": "CosOS-V",
+    "cosos-f": "CosOS-F",
+    "cosos-m": "CosOS-M",
     "coseos": "CosEOS",
     "p1": "P_1",
     "p2": "P_2",
@@ -211,8 +214,11 @@ NAMES = {
     0: "$P_0$"
 }
 
-def plot_single_oscr(fpr, ccr, ax, loss, algorithm, scale):
+def plot_single_oscr(fpr, ccr, ax, loss, algorithm, scale, max_ccr):
+
     linewidth = 1.1
+    max_ccr = min(1, max_ccr*1.1)
+
     if scale == 'log':
         ax.set_xscale('log')
         ax.set_yscale('log')
@@ -227,7 +233,7 @@ def plot_single_oscr(fpr, ccr, ax, loss, algorithm, scale):
     elif scale == 'semilog':
         ax.set_xscale('log')
         # Manual limits
-        ax.set_ylim(0.0, .8)
+        ax.set_ylim(0.0, max(0.8, max_ccr))
         ax.set_xlim(8 * 1e-5, 1.4)
         # Manual ticks
         ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))  # MaxNLocator(7))  #, prune='lower'))
@@ -236,7 +242,7 @@ def plot_single_oscr(fpr, ccr, ax, loss, algorithm, scale):
         ax.xaxis.set_minor_locator(locmin)
         ax.xaxis.set_minor_formatter(ticker.NullFormatter())
     else:
-        ax.set_ylim(0.0, 0.8)
+        ax.set_ylim(0.0, max(0.8, max_ccr))
         # ax.set_xlim(None, None)
         ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))  # , prune='lower'))
     # Remove fpr=0 since it cause errors with different ccrs and logscale.
@@ -258,14 +264,23 @@ def plot_oscr(arrays, gt, scale='linear', title=None, ax_label_font=13, ax=None,
     The arrays contain scores for various loss functions and algorithms as arrays[loss][algorithm].
     """
 
+    max_ccr = 0
+
     for loss, loss_arrays in arrays.items():
         for algorithm, scores in loss_arrays.items():
             ccr, fpr = calculate_oscr(gt, scores, unk_label)
+
+            max_ccr_curr = np.amax(ccr)
+            if max_ccr_curr > max_ccr:
+                max_ccr = max_ccr_curr
+
             ax = plot_single_oscr(fpr, ccr,
                               ax=ax,
                               loss=loss,
                               algorithm=algorithm,
-                              scale=scale)
+                              scale=scale,
+                              max_ccr=max_ccr)
+
     if title is not None:
         ax.set_title(title, fontsize=ax_label_font)
     ax.tick_params(which='both', bottom=True, top=True, left=True, right=True, direction='in')
@@ -273,6 +288,31 @@ def plot_oscr(arrays, gt, scale='linear', title=None, ax_label_font=13, ax=None,
                    labelright=False, labelsize=ax_label_font)
 
     return ax
+
+
+def toy_deep_feature_distribution_legend(classes, class_colors, figure, **kwargs):
+    """creates a legend with the class labels for all classes."""
+    from matplotlib.lines import Line2D
+
+    # create legend elements
+    # empty_legend = Line2D([None], [None], marker=".", visible=False)
+    # padding = len(lines) - len(losses)
+    # a_padding = max(-padding,0)
+    # l_padding = max(padding, 0)
+
+    # add legend elements with sufficient padding
+    legend_elements = [Line2D([None], [None], linestyle='solid', color=c) for c in class_colors]
+    labels = [f'{c}' for c in classes]
+    for i,l in enumerate(labels):
+        if l == '-1':
+            labels[i] = 'Negative'
+        elif l == '-2':
+            labels[i] = 'Unknown'
+
+
+    figure.legend(handles=legend_elements, labels=labels, loc="lower center", ncol=len(classes), **kwargs)
+
+
 
 def training_scores_legend(losses, lines, line_colors, figure, **kwargs):
     """Creates a legend with the different line style and colors"""

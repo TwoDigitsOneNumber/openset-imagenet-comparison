@@ -52,7 +52,7 @@ def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
         logits, features = model(images, labels)
 
         # Calculate loss
-        if cfg.loss.type in ['magface', 'cosos']:
+        if cfg.loss.type in ['magface', 'cosos-f', 'cosos-v', 'cosos-m']:
             j = loss_fn(logits, labels, features)
         else:
             j = loss_fn(logits, labels)
@@ -95,12 +95,12 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
         for i, (images, labels) in enumerate(data_loader):
             batch_len = labels.shape[0]  # current batch size, last batch has different value
             images = device(images)
-            labels = device(labels)  # TODO: following case gets stuck here (train_imagenet_all.py -p 0 -a threshold -l entropic -g 7)
+            labels = device(labels)
             logits, features = model(images, None)
             scores = torch.nn.functional.softmax(logits, dim=1)
 
             # Calculate loss
-            if cfg.loss.type in ['magface', 'cosos']:
+            if cfg.loss.type in ['magface', 'cosos-v', 'cosos-m', 'cosos-f']:
                 j = loss_fn(logits, labels, features)
             else:
                 j = loss_fn(logits, labels)
@@ -152,6 +152,7 @@ def get_arrays(model, loader, garbage, pretty=False):
             images = device(images)
             labels = device(labels)
             logits, features, angles = model(images, None, return_angles=True)
+
             # compute softmax scores
             scores = torch.nn.functional.softmax(logits, dim=1)
             # shall we remove the logits of the unknown class?
@@ -204,11 +205,11 @@ def worker(cfg):
     # Set image transformations
     if cfg.protocol == 0:  # toy protocol
         train_tr = transforms.Compose([
-            transforms.RandomCrop(28),
+            transforms.Resize(28),
             transforms.ToTensor()
         ])
         val_tr = transforms.Compose([
-            transforms.RandomCrop(28),
+            transforms.Resize(28),
             transforms.ToTensor()
         ])
 
@@ -295,19 +296,27 @@ def worker(cfg):
 
     # set loss
     loss = None
-    if cfg.loss.type in ["entropic", 'cosos', 'coseos']:
+    if cfg.loss.type in ["entropic", 'cosos-m', 'cosos-v', 'cosos-f', 'coseos']:
         # number of classes - 1 since we have no label for unknown
         n_classes = train_ds.label_count - 1
     else:
         # number of classes when training with extra garbage class for unknowns, or when unknowns were removed (see above train_ds.remove_negative_label())
         n_classes = train_ds.label_count
+
+
+
+    # ==================================================
+    # ============== SELECT LOSS FUNCTION ==============
+    # ==================================================
+
+
     
     # select loss function
     if cfg.loss.type in ["entropic", 'coseos']:
         # We select entropic loss using the unknown class weights from the config file
         loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
-    elif cfg.loss.type == 'cosos':
-        loss = ObjectosphereLossWrapper(torch.nn.CrossEntropyLoss(ignore_index=-1), lambda_os=0.01, xi=9.)
+    elif cfg.loss.type.startswith('cosos'):
+        loss = ObjectosphereLossWrapper(torch.nn.CrossEntropyLoss(ignore_index=-1), lambda_os=0.01, xi=64.)
     elif cfg.loss.type == "magface":
         loss = MagFaceLoss()
     elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface"]:
@@ -318,27 +327,28 @@ def worker(cfg):
         class_weights = device(train_ds.calculate_class_weights())
         loss = torch.nn.CrossEntropyLoss(weight=class_weights)
 
-    # TODO: select logit variant (should be specified vie command line arguments for the loss functions)
-    if cfg.loss.type in ["sphereface", "cosface", "arcface", "magface", 'cosos', 'coseos']:
-        logit_variant = cfg.loss.type
-    else:
-        logit_variant = 'linear'
+
+
+    # ==================================================
+    # ==================================================
+    # ==================================================
+
 
 
     # Create the model
     if cfg.protocol == 0:  # toy protocol
         model = LeNetBottleneck(
+            loss_type=cfg.loss.type,
             deep_feature_dim=2,
             out_features=n_classes,
-            logit_bias=False,
-            logit_variant=logit_variant
+            logit_bias=False
         )
     else:  # main protocols (1-3)
         model = ResNet50(
+            loss_type=cfg.loss.type,
             fc_layer_dim=n_classes,
             out_features=n_classes,
-            logit_bias=False,
-            logit_variant=logit_variant
+            logit_bias=False
         )
     device(model)
 
@@ -357,6 +367,8 @@ def worker(cfg):
             verbose=True)
     else:
         scheduler = None
+
+    nr_epochs = cfg.epochs_p0 if cfg.protocol == 0 else cfg.epochs
 
 
         # Resume a training from a checkpoint
@@ -380,7 +392,7 @@ def worker(cfg):
     val_len:{len(val_ds)}, labels:{val_ds.label_count}
     ========== Training ==========
     Initial epoch: {START_EPOCH}
-    Last epoch: {cfg.epochs}
+    Last epoch: {nr_epochs}
     Batch size: {cfg.batch_size}
     Workers: {cfg.workers}
     Loss: {cfg.loss.type}
@@ -394,14 +406,14 @@ def worker(cfg):
     writer = SummaryWriter(log_dir=cfg.output_directory, filename_suffix="-"+cfg.log_name)
 
     # arrays for storing training scores
-    epochs = np.arange(START_EPOCH, cfg.epochs)
-    val_conf_kn  = np.full_like(epochs, fill_value=np.nan, dtype=np.single)
-    val_conf_unk = np.full_like(epochs, fill_value=np.nan, dtype=np.single)
-    train_loss   = np.full_like(epochs, fill_value=np.nan, dtype=np.single)
-    val_loss     = np.full_like(epochs, fill_value=np.nan, dtype=np.single)
+    epochs_arr = np.arange(START_EPOCH, nr_epochs)
+    val_conf_kn  = np.full_like(epochs_arr, fill_value=np.nan, dtype=np.single)
+    val_conf_unk = np.full_like(epochs_arr, fill_value=np.nan, dtype=np.single)
+    train_loss   = np.full_like(epochs_arr, fill_value=np.nan, dtype=np.single)
+    val_loss     = np.full_like(epochs_arr, fill_value=np.nan, dtype=np.single)
 
 
-    for epoch in range(START_EPOCH, cfg.epochs):
+    for epoch in range(START_EPOCH, nr_epochs):
         epoch_time = time.time()
 
         # training loop
@@ -478,7 +490,7 @@ def worker(cfg):
                 break
 
     output_directory_train = Path(cfg.output_directory)
-    write_training_scores(epochs=epochs, val_conf_kn=val_conf_kn, val_conf_unk=val_conf_unk, val_loss=val_loss, train_loss=train_loss, loss_function=cfg.loss.type, output_directory=output_directory_train)
+    write_training_scores(epochs=epochs_arr, val_conf_kn=val_conf_kn, val_conf_unk=val_conf_unk, val_loss=val_loss, train_loss=train_loss, loss_function=cfg.loss.type, output_directory=output_directory_train)
 
     # clean everything
     del model

@@ -4,11 +4,11 @@ import torch.nn.functional as F
 import math
 
 
-def set_logits(logit_variant, in_features, out_features, logit_bias, **kwargs):
-    """return logits
+def set_logits(loss_type, in_features, out_features, logit_bias):
+    """return logits based on the specified loss type
     
     parameters:
-        logit_variant (str): type of logits to use
+        loss_type (str): name of loss used, this determines which type of logits to use
         in_features (int): dimension of deep features, i.e., dimension of input for the logits 
         out_features (int): output dimension of the logits
         logit_bias (bool): currently only here for compatibility, has no effect
@@ -17,7 +17,7 @@ def set_logits(logit_variant, in_features, out_features, logit_bias, **kwargs):
             -> if a parameter should be set differently for different logit_variants, then the parameter must be renamed in the respective logit class to a distinct name
     """
 
-    logit_picker = {
+    logit_map = {
         'linear': Linear,
         'sphereface': SphereFace,
         'cosface': CosFace,
@@ -26,23 +26,68 @@ def set_logits(logit_variant, in_features, out_features, logit_bias, **kwargs):
         'cosos': CosineMargin
     }
 
-    return logit_picker[logit_variant](
+    # if loss_type not in ["sphereface", "cosface", "arcface", "magface", 'cosos-f', 'cosos-v', 'cosos-m', 'coseos']:
+
+    # use linear logits for softmax and entropic loss
+    if loss_type in ['softmax', 'entropic']:
+        loss_type = 'linear'
+
+
+
+    # ==================================================
+    # ============== SET LOGIT PARAMETERS ==============
+    # ==================================================
+    # set parameters for the logits to use during training
+
+
+
+
+    s = 64
+
+    # pick appart type from its variant
+    if '-' in loss_type:
+        loss_type, variant = loss_type.split('-')
+
+    # handle CosOS variants
+    variable_magnitude_during_testing = True
+    if loss_type == 'cosos':
+        if variant == 'v':
+            s = None
+            variable_magnitude_during_testing = True
+        elif variant == 'f':
+            variable_magnitude_during_testing = False
+        elif variant == 'm':
+            variable_magnitude_during_testing = True
+        else:
+            raise ValueError(f"cosos-{variant} is not a valid option!")
+
+
+
+
+    # ==================================================
+    # ==================================================
+    # ==================================================
+
+
+
+    return logit_map[loss_type](
         in_features=in_features, 
         out_features=out_features, 
         logit_bias=logit_bias,
-        **kwargs
+        s = s,
+        variable_magnitude_during_testing = variable_magnitude_during_testing
     )
 
 
 class Linear(nn.Module):
     """Wrapper for compatibility of second argument of forward function."""
-    def __init__(self, in_features, out_features, logit_bias):
+    def __init__(self, in_features, out_features, logit_bias, **kwargs):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
-
         self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
+        print('Using Linear logits')
 
     def forward(self, features, labels):
         logits = features.mm(self.w)
@@ -57,7 +102,7 @@ class SphereFace(nn.Module):
 
         logit_bias argument in constructor soley for compatibility.
     """
-    def __init__(self, in_features, out_features, logit_bias, s=30., m=1.5):
+    def __init__(self, in_features, out_features, logit_bias, s=30., m=1.5, **kwargs):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -65,6 +110,7 @@ class SphereFace(nn.Module):
         self.m = m
         self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
+        print('Using SphereFace logits')
 
     def forward(self, features, labels):
         # weight normalization
@@ -76,12 +122,12 @@ class SphereFace(nn.Module):
 
         # their (maybe incorrect) version
         with torch.no_grad():
-            m_theta = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
             if labels is None:  # forward pass at test time
                 # mathematically equivalent to setting m=1 and k=0.
                 # this way avoids rewriting scatter_ without the use of label.
                 d_theta = torch.zeros_like(cos_theta)
             else:
+                m_theta = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
                 m_theta.scatter_(1, labels.view(-1, 1), self.m, reduce='multiply')
                 k = (m_theta / math.pi).floor()
                 sign = -2 * torch.remainder(k, 2) + 1  # (-1)**k
@@ -116,7 +162,7 @@ class CosFace(nn.Module):
 
         logit_bias argument in constructor soley for compatibility.
     """
-    def __init__(self, in_features, out_features, logit_bias, s=64., m=0.35):
+    def __init__(self, in_features, out_features, logit_bias, s=64., m=0.35, **kwargs):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -124,6 +170,7 @@ class CosFace(nn.Module):
         self.m = m
         self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
+        print('Using CosFace logits')
 
     def forward(self, features, labels):
         with torch.no_grad():
@@ -155,7 +202,7 @@ class ArcFace(nn.Module):
 
         logit_bias argument in constructor soley for compatibility.
     """
-    def __init__(self, in_features, out_features, logit_bias, s=64., m=0.5):
+    def __init__(self, in_features, out_features, logit_bias, s=64., m=0.5, **kwargs):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -163,6 +210,7 @@ class ArcFace(nn.Module):
         self.m = m
         self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
+        print('Using ArcFace logits')
 
     def forward(self, features, labels):
         with torch.no_grad():
@@ -202,7 +250,7 @@ class MagFace(nn.Module):
 
         logit_bias argument in constructor soley for compatibility.
     """
-    def __init__(self, in_features, out_features, logit_bias, s=64., l_a=10, u_a=110, l_m=.4, u_m=.8):
+    def __init__(self, in_features, out_features, logit_bias, s=64., l_a=10, u_a=110, l_m=.4, u_m=.8, **kwargs):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -213,6 +261,7 @@ class MagFace(nn.Module):
         self.u_m = u_m
         self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
+        print('Using MagFace logits')
 
     def _margin(self, a):
         """compute adaptive margin m(a_i) but for all vectors simultaneously. a is vector of norms of feature vectors. """
@@ -252,7 +301,7 @@ class CosineMargin(nn.Module):
         reference2: <Additive Margin Softmax for Face Verification>
 
     """
-    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.35, variable_magnitude_during_testing=False):
+    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.35, variable_magnitude_during_testing=False, **kwargs):
         """
         parameters:
             s (int): Feature magnitude in the deep feature space. For s=64 equal to CosFace. Use s=None for no feature normalization.
@@ -267,6 +316,7 @@ class CosineMargin(nn.Module):
         self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         self.variable_magnitude_during_testing = variable_magnitude_during_testing
         nn.init.xavier_normal_(self.w)
+        print('Using CosineMargin logits')
 
     def forward(self, features, labels):
         """set labels to None during evaluation, i.e., testing time forward pass."""

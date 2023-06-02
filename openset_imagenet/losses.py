@@ -1,6 +1,7 @@
 """ Code taken from the vast library https://github.com/Vastlab/vast"""
 from torch.nn import functional as F
 import torch
+import numpy as np
 from vast import tools
 
 
@@ -119,10 +120,13 @@ class AverageMeter(object):
             val (flat): Current value.
             count (int): Number of samples represented by val. Defaults to 1.
         """
-        self.val = val
-        self.sum += val * count
-        self.count += count
-        self.avg = self.sum / self.count
+        # reason for avoiding update if val=nan:
+        # when training CosOS we ignore index -1 and in certain batches it happens that all indices are -1 resulting in loss=nan. This issue is unavoidable for this implementation and this workaround prevents the average training loss from being nan if only a few batch losses are nan
+        if not np.isnan(val):
+            self.val = val
+            self.sum += val * count
+            self.count += count
+            self.avg = self.sum / self.count
 
     def __repr__(self):
         return f"{self.avg:3.3f}"

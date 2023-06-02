@@ -22,7 +22,7 @@ def command_line_options(command_line_arguments=None):
     # directory parameters
     parser.add_argument(
         "--losses", "-l",
-        choices = ["entropic", "softmax", "garbage", "sphereface", "cosface", "arcface", "magface", "cosos", "coseos"],
+        choices = ["entropic", "softmax", "garbage", "sphereface", "cosface", "arcface", "magface", "cosos-f", "cosos-m", "cosos-v", "coseos"],
         nargs="+",
         default = ["entropic", "softmax", "garbage"],
         help="Which loss functions to evaluate"
@@ -131,12 +131,14 @@ def load_model(cfg, loss, algorithm, protocol, suffix, output_directory, n_class
             model = LeNetBottleneck(
                 deep_feature_dim=2,
                 out_features=n_classes,
-                logit_bias=False)
+                logit_bias=False,
+                loss_type=loss)
         else:  # main protocols
             model = ResNet50(
                 fc_layer_dim=n_classes,
                 out_features=n_classes,
-                logit_bias=False)
+                logit_bias=False,
+                loss_type=loss)
 
         model_path = cfg.model_path.format(output_directory, loss, "threshold", suffix)
 
@@ -238,7 +240,7 @@ def process_model(protocol, loss, algorithms, cfg, suffix, gpu, force):
                 # extract features
                 logger.info(f"Extracting base scores for protocol {protocol}, {loss}")
                 gt, logits, features, base_scores, angles = extract(base_model, test_loader, "threshold", loss)
-                write_scores(gt, logits, features, base_scores, loss, "threshold", suffix, output_directory, angles)
+                write_scores(gt=gt, logits=logits, features=features, scores=base_scores, loss=loss, algorithm="threshold", suffix=suffix, output_directory=output_directory, angles=angles)
                 # remove model from GPU memory
                 del base_model
         else:

@@ -13,18 +13,19 @@ from .logits_variants import set_logits
 class ResNet50(nn.Module):
     """Represents a ResNet50 model"""
 
-    def __init__(self, fc_layer_dim=1000, out_features=1000, logit_bias=True, logit_variant='linear'):
+    def __init__(self, loss_type, fc_layer_dim=1000, out_features=1000, logit_bias=True):
         """ Builds a ResNet model, with deep features and logits layers.
 
         Args:
+            loss_type(str): name of loss used, determines type of logits to compute.
             fc_layer_dim(int): Deep features dimension.
             out_features(int): Logits dimension.
             logit_bias(bool): True to use bias term in the logits layer.
-            logit_variant(str): type of logits to compute {linear, sphereface, cosface, arcface, magface}.
         """
         super(ResNet50, self).__init__()
 
         self.number_of_classes = out_features
+        self.loss_type = loss_type
 
         # Change the dimension of out features
         self.resnet_base = models.resnet50(pretrained=False)
@@ -32,7 +33,7 @@ class ResNet50(nn.Module):
         self.resnet_base.fc = nn.Linear(in_features=fc_in_features, out_features=fc_layer_dim)
 
         self.logits = set_logits(
-            logit_variant=logit_variant,
+            loss_type=self.loss_type,
             in_features=fc_layer_dim,
             out_features=out_features,
             logit_bias=False
@@ -134,12 +135,12 @@ class LeNetBottleneck(nn.Module):
     parameters: see ResNet50 in this file.
     """
 
-    def __init__(self, deep_feature_dim=2, out_features=10, logit_bias=True, logit_variant='linear'):
+    def __init__(self, loss_type, deep_feature_dim=2, out_features=10, logit_bias=True):
         super(LeNetBottleneck, self).__init__()
 
         self.number_of_classes = out_features
         self.deep_feature_dim = deep_feature_dim
-        self.logit_variant = logit_variant
+        self.loss_type = loss_type
 
         self.feature_extractor = nn.Sequential(            
             # 28x28 -> 14x14
@@ -166,7 +167,7 @@ class LeNetBottleneck(nn.Module):
         )
 
         self.logits = set_logits(
-            logit_variant=self.logit_variant,
+            loss_type=self.loss_type,
             in_features=self.deep_feature_dim,
             out_features=self.number_of_classes,
             logit_bias=False

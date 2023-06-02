@@ -45,7 +45,7 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
         "--losses", "-l",
         nargs = "+",
-        choices = ('softmax', 'garbage', 'entropic', 'sphereface', 'cosface', 'arcface', 'magface', 'cosos', 'coseos'),
+        choices = ('softmax', 'garbage', 'entropic', 'sphereface', 'cosface', 'arcface', 'magface', 'cosos-f', 'cosos-m', 'cosos-v', 'coseos'),
         default = ('softmax', 'entropic', 'cosface', 'cosos'),
         help = "Select the loss functions that should be included into the plot"
     )
@@ -155,7 +155,7 @@ def load_scores(args, cfg):
     return scores, ground_truths, features, logits, angles
 
 
-def plot_training_scores(args, training_scores, pdf):
+def plot_training_metrics(args, training_scores, pdf):
     """plot loss curves, confidences of knowns and negatives, and average confidence (all as function of the training epochs training)."""
     P = len(args.protocols)
     fig = pyplot.figure(figsize=(12,3*P))
@@ -178,8 +178,8 @@ def plot_training_scores(args, training_scores, pdf):
             epochs = loss_function_arrays['epochs']
 
             # find max loss value of all losses per protocol
-            max_train_loss_curr = numpy.max(loss_function_arrays['train_loss'])
-            max_val_loss_curr = numpy.max(loss_function_arrays['val_loss'])
+            max_train_loss_curr = numpy.amax(loss_function_arrays['train_loss'])
+            max_val_loss_curr = numpy.amax(loss_function_arrays['val_loss'])
             max_curr = max(max_train_loss_curr, max_val_loss_curr)
             if max_curr > max_loss:
                 max_loss = max_curr
@@ -211,7 +211,7 @@ def plot_training_scores(args, training_scores, pdf):
         axs[2*index+2].set_title("Avg. Validation Confidence", fontsize=13)
 
         # axis formating
-        axs[2*index].set_ylim(0,min(40, round(max_loss)))
+        axs[2*index].set_ylim(0,min(40, max_loss*1.1))
         axs[2*index+1].set_ylim(0,1)
         axs[2*index+2].set_ylim(0,1)
 
@@ -387,7 +387,7 @@ def plot_CCR_FPR(args, scores, ground_truths, pdf):
 
     for index, protocol in enumerate(args.protocols):
 
-        max_ccr = 0.8
+        max_ccr = 0
 
         for loss_function, loss_function_arrays in scores[protocol].items():
             for algorithm, scores_array in loss_function_arrays.items():
@@ -411,7 +411,8 @@ def plot_CCR_FPR(args, scores, ground_truths, pdf):
         axs[2*index+1].set_title("FPR", fontsize=font_size)
 
         # axis formating
-        axs[2*index].set_ylim(0,min(max_ccr*1.1, 0.8))
+        max_ccr = min(1, max_ccr*1.1)
+        axs[2*index].set_ylim(0,max(max_ccr, 0.8))
         axs[2*index+1].set_ylim(8*1e-5, 1.4)
         axs[2*index+1].set_yscale('log')
 
@@ -523,6 +524,8 @@ def plot_score_distributions(args, scores, ground_truths, pdf):
                     ax.stairs(histograms["known"][0], histograms["known"][1], fill=True, color=fill_known, edgecolor=edge_known, linewidth=1)
                     ax.stairs(histograms["unknown"][0], histograms["unknown"][1], fill=True, color=fill_unknown, edgecolor=edge_unknown, linewidth=1)
                     ax.stairs(histograms["negative"][0], histograms["negative"][1], fill=True, color=fill_negative, edgecolor=edge_negative, linewidth=1)
+                    if algorithm == 'threshold':
+                        ax.set_xlim((0,1))
 
                 ax.set_title(f"{NAMES[protocol]} {NAMES[algorithm]}")
 
@@ -604,6 +607,7 @@ def plot_feature_distributions(args, features, ground_truths, pdf):
     known_with_unknown_idx = numpy.logical_or(ground_truths[0] == -2, known_only_idx)
     known_with_negative_idx = numpy.logical_or(ground_truths[0] == -1, known_only_idx)
     subsets = [known_only_idx, known_with_negative_idx, known_with_unknown_idx]
+    subset_names = ["Known Classes", "Known and Negative Classes", "Known and Unknown Classes"]
     S = len(subsets)
 
     for loss in args.losses:
@@ -620,8 +624,8 @@ def plot_feature_distributions(args, features, ground_truths, pdf):
 
             assert features[0][loss][algorithm].shape[1] == 2, "Deep features must be 2D vectors."
 
-            abs_max = numpy.amax(numpy.abs(features[0][loss][algorithm]))
-            abs_max *= 1.1  # add 10% margin
+            abs_max = numpy.amax(numpy.abs(features[0][loss][algorithm])) * 1.1  # add 10% margin
+            abs_max = numpy.ceil(abs_max)
 
             # plot without knowns negatives and without unknowns, with negatives, and only with unknowns
             for i, subset in enumerate(subsets):
@@ -630,19 +634,32 @@ def plot_feature_distributions(args, features, ground_truths, pdf):
                 # else:
                 ax = axs[2*a+i]
 
+                color = [target_colors[k] for k in numpy.arange(len(target_colors)) if subset[k]]
+
                 ax.scatter(
                     x=features[0][loss][algorithm][:,0][subset],
                     y=features[0][loss][algorithm][:,1][subset],
-                    c=[target_colors[k] for k in numpy.arange(len(target_colors)) if subset[k]],
+                    c=color,
                     s = 15,
                     linewidth=linewidth,
                     alpha=.2,
                     marker='.'
                 )
 
-            ax.set_xlim((-abs_max, abs_max))
-            ax.set_ylim((-abs_max, abs_max))
+                ax.set_xlim((-abs_max, abs_max))
+                ax.set_ylim((-abs_max, abs_max))
+                ax.set_xlabel(subset_names[i], ha='center', fontsize=font_size)
             
+        fig.text(0.5, -0.08, f'{NAMES[loss]} Deep Feature Distributions', ha='center', fontsize=font_size)
+
+        classes = [c for c in sorted(color_map.keys())]
+        class_colors = [color_map[c] for c in classes]
+
+        openset_imagenet.util.toy_deep_feature_distribution_legend(classes, class_colors, fig,
+            bbox_to_anchor=(0.5,-0.2), handletextpad=0.6, columnspacing=1.5
+            # title="Legend"
+        )
+
         pdf.savefig(bbox_inches='tight', pad_inches = 0)
 
 
@@ -695,7 +712,7 @@ def main(command_line_arguments = None):
 
         # plot training scores
         print("Plotting training metrics")
-        plot_training_scores(args, training_scores, pdf)
+        plot_training_metrics(args, training_scores, pdf)
 
         if 0 in args.protocols:
             print("Plotting deep feature distributions")

@@ -17,8 +17,9 @@ data:
 # Common parameters
 seed: 42        # Common seed across all source of randomness
 batch_size: 32  # If distributed training the batch size is multiplied by the number of gpus
-epochs: 15      # TODO: reset to default 120
-workers: 4      # Dataloader number of workers
+epochs: 120     # default 120
+epochs_p0: 15
+workers: 32      # Dataloader number of workers (default 4)
 patience: 0     # Number of epochs to wait before stopping the training. 0 means no early stopping
 
 # loss parameters
