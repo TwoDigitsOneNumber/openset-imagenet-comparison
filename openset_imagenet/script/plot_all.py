@@ -368,66 +368,73 @@ def plot_angle_pair_distributions(args, angles, ground_truths, pdf):
         pdf.savefig(bbox_inches='tight', pad_inches = 0)
     
 
-
-
-
 def plot_CCR_FPR(args, scores, ground_truths, pdf):
     """plot CCR and FPR separately as functions of the threshold."""
     P = len(args.protocols)
-    fig = pyplot.figure(figsize=(12,3*P))
-    gs = fig.add_gridspec(P, 2, hspace=0.25, wspace=0.1)
-    axs = gs.subplots(sharex=True, sharey=False)
-    axs = axs.flat
-    font_size = 15
-    linewidth = 1.1
+    # plot_maxlogits = 'maxlogits' in args.algorithms
+    # algs = [a for a in args.algorithms if a != 'maxlogits']
 
     # TODO: currently only plotted on negatives, also plot for unknowns
 
-    unk_label = -1
+    for protocol in args.protocols:
 
-    for index, protocol in enumerate(args.protocols):
+        A = len(args.algorithms)
+        fig = pyplot.figure(figsize=(4*(A*2),3*2))
+        gs = fig.add_gridspec(2, 2*A, hspace=0.25, wspace=0.1)
+        axs = gs.subplots(sharex='col', sharey='row')
+        axs = axs.flat
+        font_size = 15
+        linewidth = 1.1
 
         max_ccr = 0
 
-        for loss_function, loss_function_arrays in scores[protocol].items():
-            for algorithm, scores_array in loss_function_arrays.items():
+        labels = [-1, -2]
+        label_names = ["Negative", "Unknown"]
 
-                ccr, fpr, thresholds = openset_imagenet.util.calculate_oscr(ground_truths[protocol], scores_array, unk_label, return_thresholds=True)
-                max_ccr_curr = numpy.amax(ccr)
-                if max_ccr_curr > max_ccr:
-                    max_ccr = max_ccr_curr
+        for loss_function in args.losses:
+            for alg_idx, algorithm in enumerate(args.algorithms):
 
-                axs[2*index].plot(thresholds, ccr, 
-                    linestyle=STYLES[loss_function], color=COLORS[algorithm],
-                    linewidth=linewidth
-                )
-                axs[2*index+1].plot(thresholds, ccr, 
-                    linestyle=STYLES[loss_function], color=COLORS[algorithm],
-                    linewidth=linewidth
-                )
+                for label_idx, label in enumerate(labels):  # negative labels, unknown label
 
-        # add titles
-        axs[2*index].set_title("CCR", fontsize=font_size)
-        axs[2*index+1].set_title("FPR", fontsize=font_size)
+                    ccr_plot_idx = 2*alg_idx+label_idx
+                    fpr_plot_idx = 4+2*alg_idx+label_idx
 
-        # axis formating
-        max_ccr = min(1, max_ccr*1.1)
-        axs[2*index].set_ylim(0,max(max_ccr, 0.8))
-        axs[2*index+1].set_ylim(8*1e-5, 1.4)
-        axs[2*index+1].set_yscale('log')
+                    ccr, fpr, thresholds = openset_imagenet.util.calculate_oscr(ground_truths[protocol], scores[protocol][loss_function][algorithm], unk_label=label, return_thresholds=True)
+                    max_ccr_curr = numpy.amax(ccr)
+                    if max_ccr_curr > max_ccr:
+                        max_ccr = max_ccr_curr
 
-    # figure labels
-    fig.text(0.5, -0.05, 'Threshold', ha='center', fontsize=font_size)
-    fig.text(0.08, 0.5, 'CCR', va='center', rotation='vertical', fontsize=font_size)
-    fig.text(0.92, 0.5, 'FPR', va='center', rotation='vertical', fontsize=font_size)
+                    axs[ccr_plot_idx].plot(thresholds, ccr, 
+                        linestyle=STYLES[loss_function], color=COLORS[algorithm],
+                        linewidth=linewidth
+                    )
+                    axs[fpr_plot_idx].plot(thresholds, fpr, 
+                        linestyle=STYLES[loss_function], color=COLORS[algorithm],
+                        linewidth=linewidth
+                    )
 
-    # add legend
-    openset_imagenet.util.oscr_legend(args.losses, args.algorithms, fig,
-        bbox_to_anchor=(0.5,-0.3), handletextpad=0.6, columnspacing=1.5,
-        title="How to Read: Line Style -> Loss; Color -> Algorithm"
-    )
+                    # add titles
+                    axs[ccr_plot_idx].set_title(f"CCR {label_names[label_idx]}", fontsize=font_size)
+                    axs[fpr_plot_idx].set_title(f"FPR {label_names[label_idx]}", fontsize=font_size)
 
-    pdf.savefig(bbox_inches='tight', pad_inches = 0)
+                    # axis formating
+                    max_ccr = min(1, max_ccr*1.1)
+                    axs[ccr_plot_idx].set_ylim(0,max(max_ccr, 0.8))
+                    axs[fpr_plot_idx].set_ylim(8*1e-5, 1.4)
+                    axs[fpr_plot_idx].set_yscale('log')
+
+        # figure labels
+        fig.text(0.5, 0.05, 'Threshold', ha='center', fontsize=font_size)
+        # fig.text(0.08, 0.5, 'CCR', va='center', rotation='vertical', fontsize=font_size)
+        # fig.text(0.92, 0.5, 'FPR', va='center', rotation='vertical', fontsize=font_size)
+
+        # add legend
+        openset_imagenet.util.oscr_legend(args.losses, args.algorithms, fig,
+            bbox_to_anchor=(0.5,-0.1), handletextpad=0.6, columnspacing=1.5,
+            title="How to Read: Line Style -> Loss; Color -> Algorithm"
+        )
+
+        pdf.savefig(bbox_inches='tight', pad_inches = 0)
 
 
 def plot_OSCR(args, scores, ground_truths):

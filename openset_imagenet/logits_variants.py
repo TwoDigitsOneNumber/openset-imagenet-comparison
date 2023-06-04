@@ -23,7 +23,8 @@ def set_logits(loss_type, in_features, out_features, logit_bias):
         'cosface': CosFace,
         'arcface': ArcFace,
         'magface': MagFace,
-        'cosos': CosineMargin
+        'cosos': CosineMargin,
+        'arcos': AngularMargin
     }
 
     # if loss_type not in ["sphereface", "cosface", "arcface", "magface", 'cosos-f', 'cosos-v', 'cosos-m', 'coseos']:
@@ -41,16 +42,15 @@ def set_logits(loss_type, in_features, out_features, logit_bias):
 
 
 
-
-    s = 64
+    s = 10
 
     # pick appart type from its variant
     if '-' in loss_type:
         loss_type, variant = loss_type.split('-')
 
-    # handle CosOS variants
+    # handle CosOS and ArcOS variants
     variable_magnitude_during_testing = True
-    if loss_type == 'cosos':
+    if loss_type in ['cosos', 'arcos']:
         if variant == 'v':
             s = None
             variable_magnitude_during_testing = True
@@ -59,8 +59,7 @@ def set_logits(loss_type, in_features, out_features, logit_bias):
         elif variant == 'm':
             variable_magnitude_during_testing = True
         else:
-            raise ValueError(f"cosos-{variant} is not a valid option!")
-
+            raise ValueError(f"{loss_type}-{variant} is not a valid option!")
 
 
 
@@ -301,7 +300,7 @@ class CosineMargin(nn.Module):
         reference2: <Additive Margin Softmax for Face Verification>
 
     """
-    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.35, variable_magnitude_during_testing=False, **kwargs):
+    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.35, variable_magnitude_during_testing=True, **kwargs):
         """
         parameters:
             s (int): Feature magnitude in the deep feature space. For s=64 equal to CosFace. Use s=None for no feature normalization.
@@ -330,6 +329,57 @@ class CosineMargin(nn.Module):
                 # distinguish knowns from negatives/unknowns (via boolean mask) and only add margin to knowns
                 kn_idx = labels >= 0
                 cos_theta[kn_idx,:].scatter_(1, labels[kn_idx].view(-1, 1), -self.m, reduce='add')
+
+        # variable feature magnitude if 
+        if (self.s is None) or (self.s is not None and labels is None and self.variable_magnitude_during_testing):
+            a = torch.linalg.norm(features, ord=2, dim=1)
+            logits = torch.mul(a.view(-1,1), cos_theta)
+        else:  # fixed feature magnitude
+            logits = self.s * cos_theta
+
+        return logits
+
+
+class AngularMargin(nn.Module):
+    """
+        ArcFace adapted to allow variable feature magnitude.
+
+        reference: <Additive Angular Margin Loss for Deep Face Recognition>
+
+        logit_bias argument in constructor soley for compatibility.
+    """
+    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.5, variable_magnitude_during_testing=True, **kwargs):
+        """
+        parameters:
+            s (int): Feature magnitude in the deep feature space. For s=64 equal to ArcFace. Use s=None for no feature normalization.
+            logit_bias argument in constructor soley for compatibility, has no effect.
+            variable_magnitude_during_testing (bool): lets feature magnitudes be variable during testing/validation, allows to keep feature magnitude fixed only during training. Only has an effect when s is not None.
+        """
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.s = s
+        self.m = m
+        self.w = nn.Parameter(torch.Tensor(in_features, out_features))
+        nn.init.xavier_normal_(self.w)
+        print('Using AngleMargin logits')
+
+    def forward(self, features, labels):
+        """set labels to None during evaluation, i.e., testing time forward pass."""
+        with torch.no_grad():
+            self.w.data = F.normalize(self.w.data, dim=0)
+
+        cos_theta = F.normalize(features, dim=1).mm(self.w)  # \cos(\theta_{i,j})
+
+        # my version (no unnecessary tensor initialization for d_theta)
+        with torch.no_grad():
+            if labels is not None:  # training time forward pass
+                kn_idx = labels >= 0
+                theta_m = torch.acos(cos_theta.clamp(-1+1e-5, 1-1e-5))
+                theta_m[kn_idx,:].scatter_(1, labels[kn_idx].view(-1, 1), self.m, reduce='add')
+                theta_m.clamp_(1e-5, math.pi)
+                cos_theta = torch.cos(theta_m)
+            # else just use cos_theta, i.e., pass no margin (m=0). In practice this means just skipping the above if statement
 
         # variable feature magnitude if 
         if (self.s is None) or (self.s is not None and labels is None and self.variable_magnitude_during_testing):

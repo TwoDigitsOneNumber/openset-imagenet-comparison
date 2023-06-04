@@ -316,9 +316,15 @@ def worker(cfg):
         # We select entropic loss using the unknown class weights from the config file
         loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
     elif cfg.loss.type.startswith('cosos'):
-        loss = ObjectosphereLossWrapper(torch.nn.CrossEntropyLoss(ignore_index=-1), lambda_os=0.01, xi=64.)
+        loss = ObjectosphereLossWrapper(
+            prepended_loss=torch.nn.CrossEntropyLoss(ignore_index=-1),
+            lambda_os=0.01, 
+            xi=10.
+        )
     elif cfg.loss.type == "magface":
-        loss = MagFaceLoss()
+        loss = MagFaceLoss(
+            lambda_g=35
+        )
     elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface"]:
         # We need to ignore the index only for validation loss computation
         loss = torch.nn.CrossEntropyLoss(ignore_index=-1)
