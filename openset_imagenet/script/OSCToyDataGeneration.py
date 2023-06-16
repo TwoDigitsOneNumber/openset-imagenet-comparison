@@ -1,7 +1,7 @@
 # Create data loaders for toy data experiment
 # create a data loader for:
-# - train and val (emnist digits + letters): simply transform labels of letters to -1 (negatives)
-# - test (emnist digits + letters + devanagari): devanagary get labels -2 (unknowns)
+# - train and val (emnist digits + first 13 letters): simply transform labels of letters to -1 (negatives)
+# - test (emnist digits + last 13 letters): labels -2 (unknowns)
 
 import torch, torchvision
 import matplotlib.pyplot as plt
@@ -15,8 +15,8 @@ import shutil
 # set path parameters
 EMNIST_SOUCRCE_PATH = '/local/scratch/bergh/'
 TARGET_DATA_PATH = '/local/scratch/bergh/OSCToyData'
-DEVANAGARI_SOURCE_PATH = '/local/scratch/bergh/DevanagariHandwrittenCharacterDataset/Test'
-DEVANAGARI_TARGET_PATH = os.path.join(TARGET_DATA_PATH, 'test')
+# DEVANAGARI_SOURCE_PATH = '/local/scratch/bergh/DevanagariHandwrittenCharacterDataset/Test'
+# DEVANAGARI_TARGET_PATH = os.path.join(TARGET_DATA_PATH, 'test')
 
 
 def create_new_dataset(dataset, data_path, dataset_name, label_map):
@@ -34,6 +34,7 @@ def create_new_dataset(dataset, data_path, dataset_name, label_map):
     # dict of lists, keys=label, value=list of integers that are used as filenames
     filenumbers_per_label = {}
     
+    print(f'processing ({dataset_name})')
     for img, label in tqdm(dataset):
         # give figure some name, i.e., number
         if label in filenumbers_per_label.keys():
@@ -42,6 +43,8 @@ def create_new_dataset(dataset, data_path, dataset_name, label_map):
         else:
             filenumber = 0
             filenumbers_per_label[label] = [filenumber]
+        
+        # print(f'label: {label}')
         
         filename = f'{filenumber}' + '.png'
         filepath = os.path.join(dataset_name, f'{label}')
@@ -59,63 +62,44 @@ def create_new_dataset(dataset, data_path, dataset_name, label_map):
     return labels_df
 
 
-def move_and_add_devanagari_data(source_path, destination_path, labels_df):
-    """
-    add devanagari test dataset to test data and labels
+# def move_and_add_devanagari_data(source_path, destination_path, labels_df):
+#     """
+#     add devanagari test dataset to test data and labels
 
-    1. get list of foldernames (without digits), these are also the classnames
-    2. for each folder, go through all images and:
-    1. move them to test folder of OSCToyData, but keep folder structure the same
-    2. add path to labels_df_test
-    """
-    dirs = [d for d in os.listdir(source_path) if (not os.path.isfile(d) and d.startswith('character'))]
-    dictionary_list = []
+#     1. get list of foldernames (without digits), these are also the classnames
+#     2. for each folder, go through all images and:
+#     1. move them to test folder of OSCToyData, but keep folder structure the same
+#     2. add path to labels_df_test
+#     """
+#     dirs = [d for d in os.listdir(source_path) if (not os.path.isfile(d) and d.startswith('character'))]
+#     dictionary_list = []
 
-    # move each directory to OSCToysData/test
-    for directory in tqdm(dirs):
-        if not os.path.exists(os.path.join(destination_path, directory)):
-            os.mkdir(os.path.join(destination_path, directory))
-        files = os.listdir(os.path.join(source_path, directory))
-        for f in files:
-            source = os.path.join(source_path, directory, f)
-            destination = os.path.join(destination_path, directory, f)
-            if os.path.isfile(source):
-                shutil.copy(source, destination)
+#     # move each directory to OSCToysData/test
+#     for directory in tqdm(dirs):
+#         if not os.path.exists(os.path.join(destination_path, directory)):
+#             os.mkdir(os.path.join(destination_path, directory))
+#         files = os.listdir(os.path.join(source_path, directory))
+#         for f in files:
+#             source = os.path.join(source_path, directory, f)
+#             destination = os.path.join(destination_path, directory, f)
+#             if os.path.isfile(source):
+#                 shutil.copy(source, destination)
 
-                # add file to the labels_df_test with label -2
-                dictionary_list.append({'file': os.path.join('test', directory, f), 'label': -2})
+#                 # add file to the labels_df_test with label -2
+#                 dictionary_list.append({'file': os.path.join('test', directory, f), 'label': -2})
     
-    labels_df_unk = pd.DataFrame.from_dict(dictionary_list)
-    return pd.concat([labels_df, labels_df_unk], ignore_index=True)
+#     labels_df_unk = pd.DataFrame.from_dict(dictionary_list)
+#     return pd.concat([labels_df, labels_df_unk], ignore_index=True)
 
 
 def main():
-    # --------------------------------------------------
-    # load EMNIST data from torchvision
-
-    # needs to be transformed, for some reason it is all flipped (and rotated, see later)
-    transform = transforms.Compose([
-        transforms.RandomHorizontalFlip(1)
-    ])
-
-    emnist = torchvision.datasets.EMNIST(root=EMNIST_SOUCRCE_PATH, split='balanced', train=True, transform=transform)
-    emnist_train, emnist_val = torch.utils.data.random_split(emnist, [.8, .2])
-    emnist_test  = torchvision.datasets.EMNIST(root=EMNIST_SOUCRCE_PATH, split='balanced', train=False, transform=transform)
-
-    print(f"length train: {len(emnist_train)}")
-    print(f"length val  : {len(emnist_val)}")
-    print(f"length test : {len(emnist_test)}")
-
 
     # --------------------------------------------------
-    # create a map from original labels to new labels with negatives
+    # define a map from original labels to new labels with negatives
 
     kn_labels = list(range(10))  # digits [0-9]
-    neg_labels = list(range(10, 47))  # letters [A-z]
-    # neg_labels = list(range(10,26))  # letters [A-P]
-    # neg_labels.extend(list(range(36,44)))  # letters [a-n]
-    # unk_labels = list(range(26,36))  # letters [Q-Z]
-    # unk_labels.extend(list(range(44,47)))  # letters [q-t]
+    neg_labels = list(range(10, 10+13))  # first 13 letters [A-M]
+    unk_labels = list(range(10+13, 10+13+13))  # last 13 letters [N-Z]
 
     # map original labels to new labels
     label_map = {}
@@ -126,10 +110,61 @@ def main():
     for i in neg_labels:
         label_map[i] = -1
 
-    # for i in unk_labels:
-    #     label_map[i] = -2
+    for i in unk_labels:
+        label_map[i] = -2
 
-    print(f"\nnr original labels: {len(emnist.classes)}")
+
+
+    # --------------------------------------------------
+    # load EMNIST data from torchvision
+
+    # needs to be transformed, for some reason it is all flipped (and rotated, see later)
+    transform = transforms.Compose([
+        transforms.RandomHorizontalFlip(1)
+    ])
+
+    # load training and test sets
+    digits_all    = torchvision.datasets.EMNIST(root=EMNIST_SOUCRCE_PATH, split='mnist',   train=True, transform=transform, download=True)
+    letters_all   = torchvision.datasets.EMNIST(root=EMNIST_SOUCRCE_PATH, split='letters', train=True, transform=transform, download=True)
+    digits_test   = torchvision.datasets.EMNIST(root=EMNIST_SOUCRCE_PATH, split='mnist',   train=False, transform=transform, download=True)
+    letters_test  = torchvision.datasets.EMNIST(root=EMNIST_SOUCRCE_PATH, split='letters', train=False, transform=transform, download=True)
+
+    # change targets from letters from [1-26] to [10,35]
+    letters_all.targets += 9
+    letters_test.targets += 9
+
+    # take first half of letters as negatives (i.e., [A-M])
+    first_half_labels  = list(range(10,23))
+    first_half_indices   = [idx for idx, target in enumerate(letters_all.targets) if target in first_half_labels]
+    negatives = torch.utils.data.Subset(letters_all, first_half_indices)
+
+    # split negatives train and validation sets
+    knowns_train,  knowns_val = torch.utils.data.random_split(digits_all, [.8, .2])
+    negatives_train, negatives_val = torch.utils.data.random_split(negatives, [.8, .2])
+
+    # join them to create new final train, val, test sets
+    train_ds = torch.utils.data.ConcatDataset([knowns_train, negatives_train])
+    val_ds   = torch.utils.data.ConcatDataset([knowns_val,   negatives_val])
+    test_ds  = torch.utils.data.ConcatDataset([digits_test,  letters_test])
+
+
+    print(f"""
+    Dataset sizes:
+        - train: {len(train_ds)}
+        - val:   {len(val_ds)}
+        - test:  {len(test_ds)}
+    """)
+
+    print(f"""
+    labels (as classes):
+          - digits:  {digits_all.classes}
+          - digits:  {digits_all.train_labels.unique()}
+          - letters: {letters_all.classes}
+          - letters: {letters_all.train_labels.unique()}
+    """)
+
+
+    print(f"nr original labels (test): {len(digits_test.classes) + len(letters_test.classes)}")
     print(f"nr labels that are mapped: {len(label_map.keys())}")
     new_labels = []
     [new_labels.append(label) for _, label in label_map.items()]
@@ -138,15 +173,16 @@ def main():
     print(f"new labels: {new_labels}")
 
 
+
     # --------------------------------------------------
     # # create new dataset
     # iterate over all train, val, and test samples, save them as png and create labels.csv file.
-    labels_df_train = create_new_dataset(emnist_train, TARGET_DATA_PATH, 'train', label_map)
-    labels_df_val = create_new_dataset(emnist_val, TARGET_DATA_PATH, 'val', label_map)
-    labels_df_test = create_new_dataset(emnist_test, TARGET_DATA_PATH, 'test', label_map)
+    labels_df_train = create_new_dataset(train_ds, TARGET_DATA_PATH, 'train', label_map)
+    labels_df_val   = create_new_dataset(val_ds,   TARGET_DATA_PATH, 'val', label_map)
+    labels_df_test  = create_new_dataset(test_ds,  TARGET_DATA_PATH, 'test', label_map)
 
-    # move devanagari data to test folder and add it to labels_df_test (for labels_test.csv)
-    labels_df_test = move_and_add_devanagari_data(DEVANAGARI_SOURCE_PATH, DEVANAGARI_TARGET_PATH, labels_df_test)
+    # # move devanagari data to test folder and add it to labels_df_test (for labels_test.csv)
+    # labels_df_test = move_and_add_devanagari_data(DEVANAGARI_SOURCE_PATH, DEVANAGARI_TARGET_PATH, labels_df_test)
 
     # save label_train.csv etc without column names
     labels_df_train.to_csv(os.path.join(TARGET_DATA_PATH, 'labels_train.csv'), index=False, header=False)

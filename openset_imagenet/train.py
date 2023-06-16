@@ -17,8 +17,9 @@ from loguru import logger
 from .metrics import confidence, auc_score_binary, auc_score_multiclass
 from .dataset import ImagenetDataset, OSCToyDataset
 from .model import ResNet50, LeNetBottleneck, load_checkpoint, save_checkpoint, set_seeds
-from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, MagFaceLoss, ObjectosphereLossWrapper
+from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, MagFaceLoss, ObjectosphereLoss, JointLoss
 import tqdm
+import yaml
 
 
 def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
@@ -52,7 +53,7 @@ def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
         logits, features = model(images, labels)
 
         # Calculate loss
-        if cfg.loss.type in ['magface', 'cosos-f', 'cosos-v', 'cosos-m']:
+        if cfg.loss.type in ['magface', 'cosos-f', 'cosos-v', 'cosos-m', 'cosos-s', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-n', 'objectosphere']:
             j = loss_fn(logits, labels, features)
         else:
             j = loss_fn(logits, labels)
@@ -77,7 +78,7 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
     for metric in trackers.values():
         metric.reset()
 
-    if cfg.loss.type == "garbage":
+    if cfg.loss.type in ["garbage", 'cosface-garbage', 'arcface-garbage']:
         min_unk_score = 0.
         unknown_class = n_classes - 1
         last_valid_class = -1
@@ -100,7 +101,7 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
             scores = torch.nn.functional.softmax(logits, dim=1)
 
             # Calculate loss
-            if cfg.loss.type in ['magface', 'cosos-v', 'cosos-m', 'cosos-f']:
+            if cfg.loss.type in ['magface', 'cosos-v', 'cosos-m', 'cosos-f', 'cosos-s', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-n', 'objectosphere']:
                 j = loss_fn(logits, labels, features)
             else:
                 j = loss_fn(logits, labels)
@@ -160,6 +161,7 @@ def get_arrays(model, loader, garbage, pretty=False):
             if garbage:
                 logits = logits[:,:-1]
                 scores = scores[:,:-1]
+                angles = angles[:,:-1]
             # accumulate results in all_tensor
             all_targets[index:index + curr_b_size] = labels.detach().cpu()
             all_logits[index:index + curr_b_size] = logits.detach().cpu()
@@ -254,7 +256,7 @@ def worker(cfg):
             )
 
         # If using garbage class, replaces label -1 to maximum label + 1
-        if cfg.loss.type == "garbage":
+        if cfg.loss.type in ["garbage", 'cosface-garbage', 'arcface-garbage']:
             # Only change the unknown label of the training dataset
             train_ds.replace_negative_label()
             val_ds.replace_negative_label()
@@ -296,7 +298,7 @@ def worker(cfg):
 
     # set loss
     loss = None
-    if cfg.loss.type in ["entropic", 'cosos-m', 'cosos-v', 'cosos-f', 'coseos']:
+    if cfg.loss.type in ["entropic", 'cosos-m', 'cosos-v', 'cosos-f', 'cosos-s', 'coseos', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-n', 'objectosphere']:
         # number of classes - 1 since we have no label for unknown
         n_classes = train_ds.label_count - 1
     else:
@@ -309,26 +311,67 @@ def worker(cfg):
     # ============== SELECT LOSS FUNCTION ==============
     # ==================================================
 
+    # pick appart type from its variant
+    variant = None
+    loss_type = cfg.loss.type
+    if '-' in loss_type:
+        loss_type, variant = loss_type.split('-')
 
+    # load hyperparameters for the respectiev loss function
+    if not loss_type in ['softmax', 'entropic', 'garbage']:
+        hyperparams = yaml.safe_load(open('config/hyperparameters.yaml'))[loss_type]
+    else:
+        hyperparams = {}
     
+
     # select loss function
     if cfg.loss.type in ["entropic", 'coseos']:
         # We select entropic loss using the unknown class weights from the config file
         loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
-    elif cfg.loss.type.startswith('cosos'):
-        loss = ObjectosphereLossWrapper(
-            prepended_loss=torch.nn.CrossEntropyLoss(ignore_index=-1),
-            lambda_os=0.01, 
-            xi=10.
+    elif cfg.loss.type == 'objectosphere':
+        lmbd = hyperparams['lambda_os']
+        xi = hyperparams['xi']
+        symmetric = hyperparams['symmetric']
+
+        loss = JointLoss(
+            loss_1=EntropicOpensetLoss(n_classes, cfg.loss.w),
+            loss_2=ObjectosphereLoss(xi, symmetric=symmetric),
+            lmbd=lmbd,
+            loss_1_requires_features=False,
+            loss_2_requires_features=True,
+        )
+    elif cfg.loss.type.startswith('softmaxos'):
+        lmbd = hyperparams[variant]['lambda_os']
+        xi = hyperparams[variant]['xi']
+        symmetric = hyperparams[variant]['symmetric']
+
+        loss = JointLoss(
+            loss_1=torch.nn.CrossEntropyLoss(ignore_index=-1),
+            loss_2=ObjectosphereLoss(xi, symmetric=symmetric),
+            lmbd=lmbd,
+            loss_1_requires_features=False,
+            loss_2_requires_features=True,
+        )
+    elif cfg.loss.type.startswith('cosos') or cfg.loss.type.startswith('arcos'):  # CosOS and ArcOS use the same loss and only differ in their logits
+        xi = hyperparams[variant]['xi']
+        lmbd = hyperparams[variant]['lambda_os']
+        symmetric = hyperparams[variant]['symmetric']
+
+        loss = JointLoss(
+            loss_1=torch.nn.CrossEntropyLoss(ignore_index=-1),
+            loss_2=ObjectosphereLoss(xi, symmetric=symmetric),
+            lmbd=lmbd,
+            loss_1_requires_features=False,
+            loss_2_requires_features=True,
         )
     elif cfg.loss.type == "magface":
         loss = MagFaceLoss(
-            lambda_g=35
+            lambda_g=hyperparams['lambda_g']
         )
     elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface"]:
         # We need to ignore the index only for validation loss computation
         loss = torch.nn.CrossEntropyLoss(ignore_index=-1)
-    elif cfg.loss.type == "garbage":
+    elif cfg.loss.type in ["garbage", 'cosface-garbage', 'arcface-garbage']:
         # We use balanced class weights
         class_weights = device(train_ds.calculate_class_weights())
         loss = torch.nn.CrossEntropyLoss(weight=class_weights)

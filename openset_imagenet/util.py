@@ -69,6 +69,11 @@ def dataset_info(protocol_data_dir):
                                        'kn_unk (%)', 'unk_unk size', 'unk_unk (%)'])
     return info
 
+def normalize_array(array, axis, ord=2):
+    norms = np.linalg.norm(array, axis=axis, ord=ord)
+    norms = norms.reshape((-1,1))  # reshape norms to same dim as array
+    array = np.divide(array, norms)  # normalize
+    return array
 
 def read_array_list(file_names):
     """ Loads npz saved arrays
@@ -173,14 +178,23 @@ STYLES = {
     "entropic": "dashed",
     "softmax": "solid",
     "garbage": "dotted",
+    "objectosphere": "dashdot",
+    "softmaxos-s": "dashdot",
+    "softmaxos-n": "dotted",
     "sphereface": "dashed",
+    "cosface-garbage": "dashed",
+    "arcface-garbage": "dashdot",
     "cosface": "dashdot",
     "arcface": "dotted",
     "magface": "solid",
     "cosos-v": "dotted",
-    "cosos-f": "dashdot",
+    "cosos-s": "dashdot",
+    "cosos-f": "dashed",
     "cosos-m": "solid",
     "coseos": "solid",
+    "arcos-v": "dotted",
+    "arcos-s": "dashdot",
+    "arcos-f": "dashdot",
     "p1": "dashed",
     "p2": "dotted",
     "p3": "solid",
@@ -195,14 +209,23 @@ NAMES = {
     "maxlogits": "MaxLogits",
     "entropic": "EOS",
     "softmax": "Softmax",
+    "objectosphere": "Objectosphere",
+    "softmaxos-s": "SoftmaxOS-S",
+    "softmaxos-n": "SoftmaxOS-N",
     "garbage": "Garbage",
+    "cosface-garbage": "CosFace-Garbage",
+    "arcface-garbage": "ArcFace-Garbage",
     "sphereface": "SphereFace",
     "cosface": "CosFace",
     "arcface": "ArcFace",
     "magface": "MagFace",
     "cosos-v": "CosOS-V",
+    "cosos-s": "CosOS-S",
     "cosos-f": "CosOS-F",
     "cosos-m": "CosOS-M",
+    "arcos-v": "ArcOS-V",
+    "arcos-s": "ArcOS-S",
+    "arcos-f": "ArcOS-F",
     "coseos": "CosEOS",
     "p1": "P_1",
     "p2": "P_2",
@@ -409,7 +432,7 @@ def get_feature_magnitude_distribution(features, gt):
     return distributions
 
 
-def get_angle_pair_distributions(angles, gt):
+def get_angle_distributions(angles, gt):
     gt = gt.astype(int)
     known_idx = gt >= 0
     unknown_idx = gt == -2
@@ -420,25 +443,30 @@ def get_angle_pair_distributions(angles, gt):
     negatives = angles[negative_idx, :]
 
     # split the angle to the true known class from the angles to all other classes
-    known_class_idx = gt[gt >= 0]
+    known_class_idx = gt[known_idx]
     # bool_idx = np.full_like(knowns, False).astype(bool)
     # bool_idx[np.arange(knowns.shape[0]), known_class_idx] = True
-    angle_true_known_class = knowns[np.arange(knowns.shape[0]), known_class_idx]
-    angles_other_known_classes = []
+    angle_known_true_class = angles[known_idx, known_class_idx]
+
     # for each row pick all elements except the one of the true class
+    angles_known_nontrue_classes = []
     for i in np.arange(knowns.shape[0]):
         bool_idx = np.ones_like(knowns[i,:])
         bool_idx[gt[i]] = 0
-        angles_other_known_classes.append(knowns[i, bool_idx.astype(bool)])
-    angles_other_known_classes = np.array(angles_other_known_classes)
+        angles_known_nontrue_classes.append(knowns[i, bool_idx.astype(bool)])
+    angles_known_nontrue_classes = np.array(angles_known_nontrue_classes)
 
     bins = 100
 
     distributions = {}
-    distributions['known_true'] = np.histogram(angle_true_known_class, bins=bins)
-    distributions['known_smallest'] = np.histogram(np.min(angles_other_known_classes, axis=1), bins=bins)
+    distributions['known_true'] = np.histogram(angle_known_true_class, bins=bins)
+    distributions['known_smallest'] = np.histogram(np.min(angles_known_nontrue_classes, axis=1), bins=bins)
     distributions['unknown_smallest'] = np.histogram(np.min(unknowns, axis=1), bins=bins)
     distributions['negative_smallest'] = np.histogram(np.min(negatives, axis=1), bins=bins)
+
+    distributions['known_wrong_mean'] = np.histogram(np.mean(angles_known_nontrue_classes, axis=1), bins=bins)
+    distributions['unknown_mean'] = np.histogram(np.mean(unknowns, axis=1), bins=bins)
+    distributions['negative_mean'] = np.histogram(np.mean(negatives, axis=1), bins=bins)
 
     return distributions
 
@@ -453,9 +481,21 @@ def get_histogram(scores,
     unknown = gt == -2
     negative = gt == -1
 
-    knowns = scores[known, gt[known]]
-    unknowns = np.amax(scores[unknown], axis=1)
-    negatives = np.amax(scores[negative], axis=1)
+    knowns = scores[known, :]
+    unknowns = scores[unknown, :]
+    negatives = scores[negative, :]
+
+    known_class_idx = gt[known]
+    knowns_true_class = scores[known, known_class_idx]
+
+    # for each row pick all elements except the one of the true class
+    knowns_wrong_classes = []
+    for i in np.arange(knowns.shape[0]):
+        bool_idx = np.ones_like(knowns[i,:])
+        bool_idx[gt[i]] = 0
+        knowns_wrong_classes.append(knowns[i, bool_idx.astype(bool)])
+    knowns_wrong_classes = np.array(knowns_wrong_classes)
+
 
     if log_space:
         lower, upper = geomspace_limits
@@ -463,7 +503,10 @@ def get_histogram(scores,
 #    else:
 #        bins = np.linspace(0, 1, num=bins+1)
     histograms = {}
-    histograms["known"] = np.histogram(knowns, bins=bins)
-    histograms["unknown"] = np.histogram(unknowns, bins=bins)
-    histograms["negative"] = np.histogram(negatives, bins=bins)
+    histograms["known"] = np.histogram(knowns_true_class, bins=bins)
+    histograms["known_wrong_mean"] = np.histogram(np.mean(knowns_wrong_classes, axis=1), bins=bins)
+    histograms["unknown_max"] = np.histogram(np.amax(unknowns, axis=1), bins=bins)
+    histograms["unknown_mean"] = np.histogram(np.mean(unknowns, axis=1), bins=bins)
+    histograms["negative_max"] = np.histogram(np.amax(negatives, axis=1), bins=bins)
+    histograms["negative_mean"] = np.histogram(np.mean(negatives, axis=1), bins=bins)
     return histograms

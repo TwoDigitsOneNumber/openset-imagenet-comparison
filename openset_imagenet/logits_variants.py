@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+import yaml
 
 
 def set_logits(loss_type, in_features, out_features, logit_bias):
@@ -30,51 +31,28 @@ def set_logits(loss_type, in_features, out_features, logit_bias):
     # if loss_type not in ["sphereface", "cosface", "arcface", "magface", 'cosos-f', 'cosos-v', 'cosos-m', 'coseos']:
 
     # use linear logits for softmax and entropic loss
-    if loss_type in ['softmax', 'entropic']:
+    if loss_type in ['softmax', 'entropic', 'garbage', 'softmaxos-s', 'softmaxos-n', 'objectosphere']:
         loss_type = 'linear'
 
-
-
-    # ==================================================
-    # ============== SET LOGIT PARAMETERS ==============
-    # ==================================================
-    # set parameters for the logits to use during training
-
-
-
-    s = 10
-
     # pick appart type from its variant
+    variant = None
     if '-' in loss_type:
         loss_type, variant = loss_type.split('-')
 
-    # handle CosOS and ArcOS variants
-    variable_magnitude_during_testing = True
-    if loss_type in ['cosos', 'arcos']:
-        if variant == 'v':
-            s = None
-            variable_magnitude_during_testing = True
-        elif variant == 'f':
-            variable_magnitude_during_testing = False
-        elif variant == 'm':
-            variable_magnitude_during_testing = True
-        else:
-            raise ValueError(f"{loss_type}-{variant} is not a valid option!")
+    # load hyperparameters for the respectiev loss function
+    if not loss_type == 'linear':
+        hyperparams = yaml.safe_load(open('config/hyperparameters.yaml'))[loss_type]
+    else:
+        hyperparams = {}
 
-
-
-    # ==================================================
-    # ==================================================
-    # ==================================================
-
-
-
+    if variant:
+        hyperparams = hyperparams[variant]
+    
     return logit_map[loss_type](
         in_features=in_features, 
         out_features=out_features, 
         logit_bias=logit_bias,
-        s = s,
-        variable_magnitude_during_testing = variable_magnitude_during_testing
+        **hyperparams
     )
 
 
@@ -217,7 +195,7 @@ class ArcFace(nn.Module):
 
         cos_theta = F.normalize(features, dim=1).mm(self.w)
 
-        # their version (should be correct)
+        # their version (is correct)
         with torch.no_grad():
             if labels is None:  # testing time forward pass
                 d_theta = torch.zeros_like(cos_theta)
@@ -230,7 +208,7 @@ class ArcFace(nn.Module):
         logits = self.s * (cos_theta + d_theta)
         return logits
 
-        # # my version (no unnecessary tensor initialization for d_theta)
+        # # my version (no unnecessary tensor initialization for d_theta, but raises error as cos_theta needs gradient)
         # with torch.no_grad():
         #     if labels is not None:  # training time forward pass
         #         theta_m = torch.acos(cos_theta.clamp(-1+1e-5, 1-1e-5))
@@ -238,6 +216,7 @@ class ArcFace(nn.Module):
         #         theta_m.clamp_(1e-5, math.pi)
         #         cos_theta = torch.cos(theta_m)
         #     # else just use cos_theta, i.e., pass no margin (m=0). In practice this means just skipping the above if statement
+
         # logits = self.s * cos_theta
         # return logits
 
@@ -312,8 +291,8 @@ class CosineMargin(nn.Module):
         self.out_features = out_features
         self.s = s
         self.m = m
-        self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         self.variable_magnitude_during_testing = variable_magnitude_during_testing
+        self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
         print('Using CosineMargin logits')
 
@@ -328,7 +307,7 @@ class CosineMargin(nn.Module):
             if labels is not None:  # training time forward pass
                 # distinguish knowns from negatives/unknowns (via boolean mask) and only add margin to knowns
                 kn_idx = labels >= 0
-                cos_theta[kn_idx,:].scatter_(1, labels[kn_idx].view(-1, 1), -self.m, reduce='add')
+                cos_theta[kn_idx,:] = cos_theta[kn_idx,:].scatter(1, labels[kn_idx].view(-1, 1), -self.m, reduce='add')
 
         # variable feature magnitude if 
         if (self.s is None) or (self.s is not None and labels is None and self.variable_magnitude_during_testing):
@@ -360,9 +339,10 @@ class AngularMargin(nn.Module):
         self.out_features = out_features
         self.s = s
         self.m = m
+        self.variable_magnitude_during_testing = variable_magnitude_during_testing
         self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
-        print('Using AngleMargin logits')
+        print('Using AngularMargin logits')
 
     def forward(self, features, labels):
         """set labels to None during evaluation, i.e., testing time forward pass."""
@@ -371,22 +351,69 @@ class AngularMargin(nn.Module):
 
         cos_theta = F.normalize(features, dim=1).mm(self.w)  # \cos(\theta_{i,j})
 
-        # my version (no unnecessary tensor initialization for d_theta)
         with torch.no_grad():
-            if labels is not None:  # training time forward pass
+            if labels is None:  # testing time forward pass
+                d_theta = torch.zeros_like(cos_theta)
+            else:  # training time forward pass
                 kn_idx = labels >= 0
                 theta_m = torch.acos(cos_theta.clamp(-1+1e-5, 1-1e-5))
-                theta_m[kn_idx,:].scatter_(1, labels[kn_idx].view(-1, 1), self.m, reduce='add')
+                theta_m[kn_idx,:] = theta_m[kn_idx,:].scatter(1, labels[kn_idx].view(-1, 1), self.m, reduce='add')
                 theta_m.clamp_(1e-5, math.pi)
-                cos_theta = torch.cos(theta_m)
+                d_theta = torch.cos(theta_m) - cos_theta
+
             # else just use cos_theta, i.e., pass no margin (m=0). In practice this means just skipping the above if statement
 
         # variable feature magnitude if 
         if (self.s is None) or (self.s is not None and labels is None and self.variable_magnitude_during_testing):
             a = torch.linalg.norm(features, ord=2, dim=1)
-            logits = torch.mul(a.view(-1,1), cos_theta)
+            logits = torch.mul(a.view(-1,1), cos_theta + d_theta)
         else:  # fixed feature magnitude
-            logits = self.s * cos_theta
+            logits = self.s * (cos_theta + d_theta)
 
         return logits
 
+
+
+class LogitMargin(nn.Module):
+    """
+        logits for softmargin softmax (SM-Softmax). For s=None no featurenormalization takes place, for w_normalization=False no weight normalization takes place.
+
+        set s=None and w_normalization=False for original SM-Softmax.
+    """
+    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.3, w_normalization=False, variable_magnitude_during_testing=True, **kwargs):
+        """
+        parameters:
+            s (int): Feature magnitude in the deep feature space. For s=64 equal to CosFace. Use s=None for no feature normalization.
+            logit_bias argument in constructor soley for compatibility, has no effect.
+            variable_magnitude_during_testing (bool): lets feature magnitudes be variable during testing/validation, allows to keep feature magnitude fixed only during training. Only has an effect when s is not None.
+        """
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.s = s
+        self.m = m
+        self.w_normalization = w_normalization
+        self.variable_magnitude_during_testing = variable_magnitude_during_testing
+        self.w = nn.Parameter(torch.Tensor(in_features, out_features))
+        nn.init.xavier_normal_(self.w)
+        print('Using CosineMargin logits')
+
+    def forward(self, features, labels):
+        """set labels to None during evaluation, i.e., testing time forward pass."""
+        with torch.no_grad():
+            if self.w_normalization:
+                self.w.data = F.normalize(self.w.data, dim=0)
+
+        # variable feature magnitude if 
+        if (self.s is None) or (self.s is not None and labels is None and self.variable_magnitude_during_testing):
+            logits = features.mm(self.w)
+        else:  # fixed feature magnitude
+            logits = F.normalize(features, dim=1).mm(self.w) * self.s  # \cos(\theta_{i,j})
+
+        with torch.no_grad():
+            if labels is not None:  # training time forward pass
+                # distinguish knowns from negatives/unknowns (via boolean mask) and only add margin to knowns
+                kn_idx = labels >= 0
+                logits[kn_idx,:] = logits[kn_idx,:].scatter(1, labels[kn_idx].view(-1, 1), -self.m, reduce='add')
+
+        return logits

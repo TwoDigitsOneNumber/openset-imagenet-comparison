@@ -22,7 +22,7 @@ def command_line_options(command_line_arguments=None):
     # directory parameters
     parser.add_argument(
         "--losses", "-l",
-        choices = ["entropic", "softmax", "garbage", "sphereface", "cosface", "arcface", "magface", "cosos-f", "cosos-m", "cosos-v", "coseos"],
+        choices = ["entropic", "softmax", "garbage", "sphereface", "cosface", "arcface", "magface", "cosos-f", "cosos-m", "cosos-v", 'cosos-s', "coseos", 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-n', 'objectosphere', 'cosface-garbage', 'arcface-garbage'],
         nargs="+",
         default = ["entropic", "softmax", "garbage"],
         help="Which loss functions to evaluate"
@@ -131,7 +131,7 @@ def load_model(cfg, loss, algorithm, protocol, suffix, output_directory, n_class
             model = LeNetBottleneck(
                 deep_feature_dim=2,
                 out_features=n_classes,
-                logit_bias=False,
+                logit_bias=False, 
                 loss_type=loss)
         else:  # main protocols
             model = ResNet50(
@@ -148,7 +148,7 @@ def load_model(cfg, loss, algorithm, protocol, suffix, output_directory, n_class
         return
 
     start_epoch, best_score = openset_imagenet.train.load_checkpoint(model, model_path)
-    logger.info(f"Taking model from epoch {start_epoch} that achieved best score {best_score}")
+    logger.info(f"Taking model from epoch {start_epoch} that achieved best score {best_score} (suffix={suffix})")
     device(model)
     return model
 
@@ -164,7 +164,7 @@ def extract(model, data_loader, algorithm, loss):
         return openset_imagenet.train.get_arrays(
             model=model,
             loader=data_loader,
-            garbage=loss=="garbage",
+            garbage=loss in ["garbage", 'cosface-garbage', 'arcface-garbage'],
             pretty=True
         )
 
@@ -223,7 +223,7 @@ def process_model(protocol, loss, algorithms, cfg, suffix, gpu, force):
     test_dataset, test_loader = dataset(cfg, protocol)
 
     # load base model
-    if loss == "garbage":
+    if loss in ["garbage", 'cosface-garbage', 'arcface-garbage']:
         n_classes = test_dataset.label_count - 1 # we use one class for the negatives; the dataset has two additional labels: negative and unknown
     else:
         n_classes = test_dataset.label_count - 2  # number of classes - 2 when training was without garbage class

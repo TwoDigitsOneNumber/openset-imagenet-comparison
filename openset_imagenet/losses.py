@@ -52,9 +52,11 @@ class ObjectosphereLoss:
 
     params:
         xi (float): target lower boundary of feature magnitude for knowns.
+        symmetric (bool): if symmetric, penalize deviation of magnitude to xi of knowns symmetrically, not via max.
     """
-    def __init__(self, xi):
+    def __init__(self, xi, symmetric=False):
         self.xi = xi
+        self.symmetric = symmetric
 
     def __call__(self, logits, targets, features):
         # distinguish knowns from negatives/unknowns (via boolean mask)
@@ -65,37 +67,54 @@ class ObjectosphereLoss:
         a = torch.linalg.norm(features, ord=2, dim=1)
 
         # compute loss accordingly
-        error_knowns = torch.square(torch.maximum(self.xi-a[kn_idx], torch.zeros_like(a[kn_idx]))) 
+        if self.symmetric:
+            error_knowns = torch.square(self.xi-a[kn_idx])
+        else:
+            error_knowns = torch.square(torch.maximum(self.xi-a[kn_idx], torch.zeros_like(a[kn_idx]))) 
         error_unknowns = torch.square(a[unk_idx])
 
         # reduce via mean and then return
         return torch.mean(torch.cat((error_knowns, error_unknowns)))
 
 
-class ObjectosphereLossWrapper:
+class JointLoss:
     """
-    Loss that when called appends the objectosphere loss to the input loss.
+    Loss that when called appends loss_2 to loss_1 and weights loss_2 with lmbd.
+
+    loss functions loss_i (i={1,2}) get combined with loss_1 as follows: loss_1(logits, targets) + lmbd * loss_2(logits, targets, features). 
+    It must be able to be called via: loss_i(logits, targets). If it needs the features as additional argument it must be called as loss_i(logits, targets, features) and you must set loss_i_requires_features=True.
 
     params:
-        prepended_loss (function): 
-            loss function (f) that gets combined with objectosphere loss (o) as follows: prepended_loss(logits, targets) + lambda_os * objecto_sphere(logits, targets, features). 
-            It must be able to be called via: prepended_loss(logits, targets). If it needs the features as additional argument it must be called as prepended_loss(logits, targets, features) and you must set prepended_loss_requires_features=True.
+        loss_1 (function): 
+        loss_2 (function): 
         lambda_os (float): weight for the objectosphere loss
         xi (float): target lower boundary of feature magnitude for knowns.
-        prepended_loss_requires_features (bool): set true if prepended_loss requires the features as input.
+        loss_1_requires_features (bool): set true if loss_1 requires the features as input.
+        loss_2_requires_features (bool): set true if loss_2 requires the features as input.
     """
-    def __init__(self, prepended_loss, lambda_os, xi, prepended_loss_requires_features=False):
-        self.prepended_loss = prepended_loss
-        self.lambda_os = lambda_os
-        self.xi = xi
-        self.prepended_loss_requires_features = prepended_loss_requires_features
-        self.objectosphere_loss = ObjectosphereLoss(self.xi)
+    def __init__(self, loss_1, loss_2, lmbd, loss_1_requires_features=False, loss_2_requires_features=False):
+        self.loss_1 = loss_1
+        self.loss_2 = loss_2
+        self.lmbd = lmbd
+        self.loss_1_requires_features = loss_1_requires_features
+        self.loss_2_requires_features = loss_2_requires_features
 
     def __call__(self, logits, targets, features):
-        if self.prepended_loss_requires_features:
-            return self.prepended_loss(logits, targets, features) + self.lambda_os * self.objectosphere_loss(logits, targets, features)
-        else:
-            return self.prepended_loss(logits, targets) + self.lambda_os * self.objectosphere_loss(logits, targets, features)
+        if self.loss_1_requires_features and self.loss_2_requires_features:
+            return self.loss_1(logits, targets, features) + \
+                self.lmbd * self.loss_2(logits, targets, features)
+
+        elif self.loss_1_requires_features and not self.loss_2_requires_features:
+            return self.loss_1(logits, targets, features) + \
+                self.lmbd * self.loss_2(logits, targets)
+
+        elif not self.loss_1_requires_features and self.loss_2_requires_features:
+            return self.loss_1(logits, targets) + \
+                self.lmbd * self.loss_2(logits, targets, features)
+
+        elif not self.loss_1_requires_features and not self.loss_2_requires_features:
+            return self.loss_1(logits, targets) + \
+                self.lmbd * self.loss_2(logits, targets)
 
 
 class AverageMeter(object):

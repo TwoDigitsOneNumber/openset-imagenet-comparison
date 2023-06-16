@@ -53,10 +53,11 @@ class ResNet50(nn.Module):
         """
         deep_features = self.resnet_base(image)
         logits = self.logits(deep_features, labels)
+
         if return_angles:
             # compute angles
             with torch.no_grad():
-                cos_theta = F.normalize(deep_features).mm(F.normalize(self.logits.w, dim=0))
+                cos_theta = F.normalize(deep_features, dim=1).mm(F.normalize(self.logits.w, dim=0))
                 angles = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
             return logits, deep_features, angles
         else:
@@ -189,10 +190,11 @@ class LeNetBottleneck(nn.Module):
         x = torch.flatten(x, 1)
         deep_features = self.deep_feature_extractor(x)
         logits = self.logits(deep_features, labels)
+
         if return_angles:
             # compute angles
             with torch.no_grad():
-                cos_theta = F.normalize(deep_features).mm(F.normalize(self.logits.w, dim=0))
+                cos_theta = F.normalize(deep_features, dim=1).mm(F.normalize(self.logits.w, dim=0))
                 angles = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
             return logits, deep_features, angles
         else:
