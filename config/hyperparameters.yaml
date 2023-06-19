@@ -88,6 +88,9 @@ softmaxos:
     symmetric: False
   
 objectosphere:
-  xi: 24
-  lambda_os: 0.01
+  xi: 50
+  lambda_os: 0.0001
   symmetric: False
+
+smsoftmax:
+  m: 50

@@ -179,6 +179,7 @@ STYLES = {
     "softmax": "solid",
     "garbage": "dotted",
     "objectosphere": "dashdot",
+    "smsoftmax": "dotted",
     "softmaxos-s": "dashdot",
     "softmaxos-n": "dotted",
     "sphereface": "dashed",
@@ -210,6 +211,7 @@ NAMES = {
     "entropic": "EOS",
     "softmax": "Softmax",
     "objectosphere": "Objectosphere",
+    "smsoftmax": "SM-Softmax",
     "softmaxos-s": "SoftmaxOS-S",
     "softmaxos-n": "SoftmaxOS-N",
     "garbage": "Garbage",
@@ -423,11 +425,12 @@ def get_feature_magnitude_distribution(features, gt):
     negatives = np.linalg.norm(features[negative_idx, :], ord=2, axis=1)
 
     bins = 300
+    density = False
 
     distributions = {}
-    distributions['knowns'] = np.histogram(knowns, bins=bins)
-    distributions['unknowns'] = np.histogram(unknowns, bins=bins)
-    distributions['negatives'] = np.histogram(negatives, bins=bins)
+    distributions['knowns'] = np.histogram(knowns, bins=bins, density=density)
+    distributions['unknowns'] = np.histogram(unknowns, bins=bins, density=density)
+    distributions['negatives'] = np.histogram(negatives, bins=bins, density=density)
 
     return distributions
 
@@ -456,17 +459,25 @@ def get_angle_distributions(angles, gt):
         angles_known_nontrue_classes.append(knowns[i, bool_idx.astype(bool)])
     angles_known_nontrue_classes = np.array(angles_known_nontrue_classes)
 
-    bins = 100
+    n_bins = 100
+    bins = np.linspace(0, np.pi+np.pi/n_bins, n_bins)
+    density = False
 
     distributions = {}
-    distributions['known_true'] = np.histogram(angle_known_true_class, bins=bins)
-    distributions['known_smallest'] = np.histogram(np.min(angles_known_nontrue_classes, axis=1), bins=bins)
-    distributions['unknown_smallest'] = np.histogram(np.min(unknowns, axis=1), bins=bins)
-    distributions['negative_smallest'] = np.histogram(np.min(negatives, axis=1), bins=bins)
+    distributions['known_true'] = np.histogram(angle_known_true_class, bins=bins, density=density)
+    # distributions['known_smallest'] = np.histogram(np.min(angles_known_nontrue_classes, axis=1), bins=bins, density=density)
+    distributions['unknown_smallest'] = np.histogram(np.min(unknowns, axis=1), bins=bins, density=density)
+    distributions['negative_smallest'] = np.histogram(np.min(negatives, axis=1), bins=bins, density=density)
 
-    distributions['known_wrong_mean'] = np.histogram(np.mean(angles_known_nontrue_classes, axis=1), bins=bins)
-    distributions['unknown_mean'] = np.histogram(np.mean(unknowns, axis=1), bins=bins)
-    distributions['negative_mean'] = np.histogram(np.mean(negatives, axis=1), bins=bins)
+    # distributions['known_wrong_max'] = np.histogram(np.max(angles_known_nontrue_classes, axis=1), bins=bins, density=density)
+    distributions['unknown_max'] = np.histogram(np.max(unknowns, axis=1), bins=bins, density=density)
+    distributions['negative_max'] = np.histogram(np.max(negatives, axis=1), bins=bins, density=density)
+
+    distributions['unknown_avg'] = np.histogram(np.mean(unknowns, axis=1), bins=bins, density=density)
+    distributions['negative_avg'] = np.histogram(np.mean(negatives, axis=1), bins=bins, density=density)
+
+    distributions['unknown_std'] = np.histogram(np.std(unknowns, axis=1), bins=n_bins, density=density)
+    distributions['negative_std'] = np.histogram(np.std(negatives, axis=1), bins=n_bins, density=density)
 
     return distributions
 
@@ -497,16 +508,17 @@ def get_histogram(scores,
     knowns_wrong_classes = np.array(knowns_wrong_classes)
 
 
+    density = False
     if log_space:
         lower, upper = geomspace_limits
         bins = np.geomspace(lower, upper, num=bins)
 #    else:
 #        bins = np.linspace(0, 1, num=bins+1)
     histograms = {}
-    histograms["known"] = np.histogram(knowns_true_class, bins=bins)
-    histograms["known_wrong_mean"] = np.histogram(np.mean(knowns_wrong_classes, axis=1), bins=bins)
-    histograms["unknown_max"] = np.histogram(np.amax(unknowns, axis=1), bins=bins)
-    histograms["unknown_mean"] = np.histogram(np.mean(unknowns, axis=1), bins=bins)
-    histograms["negative_max"] = np.histogram(np.amax(negatives, axis=1), bins=bins)
-    histograms["negative_mean"] = np.histogram(np.mean(negatives, axis=1), bins=bins)
+    histograms["known"] = np.histogram(knowns_true_class, bins=bins, density=density)
+    histograms["known_wrong_mean"] = np.histogram(np.mean(knowns_wrong_classes, axis=1), bins=bins, density=density)
+    histograms["unknown_max"] = np.histogram(np.amax(unknowns, axis=1), bins=bins, density=density)
+    histograms["unknown_mean"] = np.histogram(np.mean(unknowns, axis=1), bins=bins, density=density)
+    histograms["negative_max"] = np.histogram(np.amax(negatives, axis=1), bins=bins, density=density)
+    histograms["negative_mean"] = np.histogram(np.mean(negatives, axis=1), bins=bins, density=density)
     return histograms

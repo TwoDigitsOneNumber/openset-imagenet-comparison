@@ -45,7 +45,7 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
         "--losses", "-l",
         nargs = "+",
-        choices = ('softmax', 'garbage', 'entropic', 'sphereface', 'cosface', 'arcface', 'magface', 'cosos-f', 'cosos-m', 'cosos-v', 'cosos-s', 'coseos', 'arcos-s', 'arcos-v', 'arcos-f', 'softmaxos-s', 'softmaxos-n', 'objectosphere', 'cosface-garbage', 'arcface-garbage'),
+        choices = ('softmax', 'garbage', 'entropic', 'sphereface', 'cosface', 'arcface', 'magface', 'cosos-f', 'cosos-m', 'cosos-v', 'cosos-s', 'coseos', 'arcos-s', 'arcos-v', 'arcos-f', 'softmaxos-s', 'softmaxos-n', 'objectosphere', 'cosface-garbage', 'arcface-garbage', 'smsoftmax'),
         default = ('softmax', 'entropic', 'cosface', 'cosos-v'),
         help = "Select the loss functions that should be included into the plot"
     )
@@ -302,7 +302,7 @@ def plot_angle_distributions(args, angles, ground_truths, pdf):
     """
     P = len(args.protocols)
     algs = [a for a in args.algorithms if a != 'maxlogits']
-    A = len(algs)
+    A = len(algs) + 3
     # fig = pyplot.figure(figsize=(6*(A+1),3*P))
     # gs = fig.add_gridspec(P, A+1, hspace=0.25, wspace=0.1)
     # axs = gs.subplots(sharex=True, sharey=False)
@@ -311,6 +311,11 @@ def plot_angle_distributions(args, angles, ground_truths, pdf):
     font_size = 15
     linewidth = 1.1
 
+
+    step_size = numpy.pi/4
+    x_tick = numpy.arange(0, numpy.pi + step_size, step_size)
+    x_label = [r'0', r'$\frac{\pi}{4}$', r'$\frac{\pi}{2}$', r'$\frac{3\pi}{4}$', r'$\pi$']
+
     # Manual colors
     category_color = {
         'known_true': colors.to_rgba('tab:blue', 1),
@@ -318,8 +323,12 @@ def plot_angle_distributions(args, angles, ground_truths, pdf):
         'unknown_smallest': colors.to_rgba('indianred', 1),
         'negative_smallest': colors.to_rgba('tab:green', 1),
         # 'known_wrong_mean': colors.to_rgba('tab:orange', 1),
-        'unknown_mean': colors.to_rgba('indianred', 1),
-        'negative_mean': colors.to_rgba('tab:green', 1)
+        'unknown_max': colors.to_rgba('indianred', 1),
+        'negative_max': colors.to_rgba('tab:green', 1),
+        'unknown_avg': colors.to_rgba('indianred', 1),
+        'negative_avg': colors.to_rgba('tab:green', 1),
+        'unknown_std': colors.to_rgba('indianred', 1),
+        'negative_std': colors.to_rgba('tab:green', 1)
     }
     category_color_fill = {
         'known_true': colors.to_rgba('tab:blue', .04),
@@ -327,25 +336,33 @@ def plot_angle_distributions(args, angles, ground_truths, pdf):
         'unknown_smallest': colors.to_rgba('indianred', .04),
         'negative_smallest': colors.to_rgba('tab:green', .04),
         # 'known_wrong_mean': colors.to_rgba('tab:orange', .04),
-        'unknown_mean': colors.to_rgba('indianred', .04),
-        'negative_mean': colors.to_rgba('tab:green', .04)
+        'unknown_max': colors.to_rgba('indianred', .04),
+        'negative_max': colors.to_rgba('tab:green', .04),
+        'unknown_avg': colors.to_rgba('indianred', .04),
+        'negative_avg': colors.to_rgba('tab:green', .04),
+        'unknown_std': colors.to_rgba('indianred', .04),
+        'negative_std': colors.to_rgba('tab:green', .04)
     }
     category_name = {
-        'known_true': "Known True",
+        'known_true': r"Known ($y_i$)",
         # 'known_smallest': "Known (Min non-true)",
         'unknown_smallest': "Unknown (Min)",
         'negative_smallest': "Negative (Min)",
         # 'known_wrong_mean': "Known (Avg. non-true)",
-        'unknown_mean': "Unknown (Avg.)",
-        'negative_mean': "Negative (Avg.)"
+        'unknown_max': "Unknown (Max)",
+        'negative_max': "Negative (Max)",
+        'unknown_avg': "Unknown (Avg)",
+        'negative_avg': "Negative (Avg)",
+        'unknown_std': "Unknown (Std)",
+        'negative_std': "Negative (Std)"
     }
     
 
     for loss in args.losses:
 
-        fig = pyplot.figure(figsize=(6*A,3*P))
-        gs = fig.add_gridspec(P, A, hspace=0.25, wspace=0.1)
-        axs = gs.subplots(sharex=True, sharey=False)
+        fig = pyplot.figure(figsize=(4*A,3*P))
+        gs = fig.add_gridspec(P, A, hspace=0.45, wspace=0.1)
+        axs = gs.subplots(sharex=False, sharey=True)
         axs = axs.flat
 
         for index, protocol in enumerate(args.protocols):
@@ -368,27 +385,35 @@ def plot_angle_distributions(args, angles, ground_truths, pdf):
                 # # axis formating
                 ax.set_xlim(0, numpy.pi)
                 ax.legend()
+                ax.set_xticks(x_tick)
+                ax.set_xticklabels(x_label)
             
-            # # plot mean angle distributions
-            # distributions = openset_imagenet.util.get_angle_distributions(angles[protocol][loss]['threshold'], ground_truths[protocol])
+            # # plot max angle distributions
+            distributions = openset_imagenet.util.get_angle_distributions(angles[protocol][loss]['threshold'], ground_truths[protocol])
 
+            for i, suffix in enumerate(['avg', 'max', 'std']):
 
-            # ax = axs[2*index+A-1]
-            # for cat in ['known_true', 'known_wrong_mean', 'unknown_mean', 'negative_mean']:
-            #     ax.stairs(
-            #         distributions[cat][0], distributions[cat][1], 
-            #         fill=True, color=category_color_fill[cat], edgecolor=category_color[cat],
-            #         label=category_name[cat], linewidth=linewidth
-            #     )
+                ax = axs[2*index+a+(i+1)]
+                for cat in ['known_true', 'unknown_'+suffix, 'negative_'+suffix]:
+                    if suffix == 'std' and cat == 'known_true':
+                        continue
+                    ax.stairs(
+                        distributions[cat][0], distributions[cat][1], 
+                        fill=True, color=category_color_fill[cat], edgecolor=category_color[cat],
+                        label=category_name[cat], linewidth=linewidth
+                    )
 
-            # # axis formating
-            # ax.set_xlim(0, numpy.pi)
-            # ax.legend()
+                # axis formating
+                if suffix != 'std':
+                    ax.set_xlim(0, numpy.pi)
+                ax.set_xticks(x_tick)
+                ax.set_xticklabels(x_label)
+                ax.legend()
 
 
         # X label
         fig.text(0.5, -0.05, f'{NAMES[loss]} Angles to Class Centers (radians)', ha='center', fontsize=font_size)
-        fig.text(0.01, 0.5, 'Frequency', va='center', rotation='vertical', fontsize=font_size)
+        fig.text(0.08, 0.5, 'Frequency', va='center', rotation='vertical', fontsize=font_size)
 
         pdf.savefig(bbox_inches='tight', pad_inches = 0)
     
@@ -658,8 +683,8 @@ def plot_feature_distributions(args, features, ground_truths, pdf):
     target_colors = [color_map[i] for i in ground_truths[0]]
 
     known_only_idx = ground_truths[0] >= 0
-    known_with_unknown_idx = numpy.logical_or(ground_truths[0] == -2, known_only_idx)
     known_with_negative_idx = numpy.logical_or(ground_truths[0] == -1, known_only_idx)
+    known_with_unknown_idx = numpy.logical_or(ground_truths[0] == -2, known_only_idx)
     subsets = [known_only_idx, known_with_negative_idx, known_with_unknown_idx]
     subset_names = ["Known Classes", "Known and Negative Classes", "Known and Unknown Classes"]
     S = len(subsets)
@@ -668,9 +693,9 @@ def plot_feature_distributions(args, features, ground_truths, pdf):
 
         fig = pyplot.figure(figsize=(4*S,4*V))
         gs = fig.add_gridspec(V, 3, hspace=0.25, wspace=0.1)
-        axs = gs.subplots(sharex=True, sharey=False)
+        axs = gs.subplots(sharex=False, sharey=False)
         # if A>1:
-        # axs = axs.flat
+        axs = axs.flat
         font_size = 15
         linewidth = 1.1
 
@@ -678,31 +703,32 @@ def plot_feature_distributions(args, features, ground_truths, pdf):
 
         for v, vis in enumerate(visualization):
 
-            features = features[0][loss][algorithm]
+            feats = features[0][loss][algorithm]
             if vis == 'normalized':
-                features = normalize_array(features, axis=1, ord=2)
+                feats = normalize_array(feats, axis=1, ord=2) * 10  # multiply by 10 for better visual scale
 
-            abs_max = numpy.amax(numpy.abs(features)) * 1.1  # add 10% margin
+            abs_max = numpy.amax(numpy.abs(feats)) * 1.1  # add 10% margin
             abs_max = numpy.ceil(abs_max)
 
             # plot without knowns negatives and without unknowns, with negatives, and only with unknowns
             for i, subset in enumerate(subsets):
-                ax = axs[2*v+i]
+                ax = axs[3*v+i]
 
                 color = [target_colors[k] for k in numpy.arange(len(target_colors)) if subset[k]]
 
                 ax.scatter(
-                    x=features[:,0][subset],
-                    y=features[:,1][subset],
+                    x=feats[:,0][subset],
+                    y=feats[:,1][subset],
                     c=color,
-                    s=15,
+                    s=5,
                     linewidth=linewidth,
-                    alpha=.2,
+                    alpha=.1,
                     marker='.'
                 )
 
                 if vis == 'normalized':
                     # TODO: add class centers to the plot
+                    # TODO: remove ticks from normalized plots
                     pass
 
                 ax.set_xlim((-abs_max, abs_max))

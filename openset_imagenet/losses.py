@@ -77,6 +77,31 @@ class ObjectosphereLoss:
         return torch.mean(torch.cat((error_knowns, error_unknowns)))
 
 
+class objectoSphere_loss:
+    """taken from https://github.com/Vastlab/vast/blob/main/vast/losses/losses.py. identical implementation to ObjectosphereLoss."""
+    def __init__(self, xi=50.0):
+        self.knownsMinimumMag = xi
+
+    def __call__(self, logits, target, features, sample_weights=None):
+        # compute feature magnitude
+        mag = features.norm(p=2, dim=1)
+        # For knowns we want a certain magnitude
+        mag_diff_from_ring = torch.clamp(self.knownsMinimumMag - mag, min=0.0)
+
+        # Loss per sample
+        loss = tools.device(torch.zeros(features.shape[0]))
+        known_indexes = target != -1
+        unknown_indexes = ~known_indexes
+        # knowns: punish if magnitude is inside of ring
+        loss[known_indexes] = mag_diff_from_ring[known_indexes]
+        # unknowns: punish any magnitude
+        loss[unknown_indexes] = mag[unknown_indexes]
+        loss = torch.pow(loss, 2)
+        if sample_weights is not None:
+            loss = sample_weights * loss
+        return torch.mean(loss)
+
+
 class JointLoss:
     """
     Loss that when called appends loss_2 to loss_1 and weights loss_2 with lmbd.

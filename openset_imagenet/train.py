@@ -17,7 +17,7 @@ from loguru import logger
 from .metrics import confidence, auc_score_binary, auc_score_multiclass
 from .dataset import ImagenetDataset, OSCToyDataset
 from .model import ResNet50, LeNetBottleneck, load_checkpoint, save_checkpoint, set_seeds
-from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, MagFaceLoss, ObjectosphereLoss, JointLoss
+from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, MagFaceLoss, ObjectosphereLoss, JointLoss, objectoSphere_loss
 import tqdm
 import yaml
 
@@ -260,7 +260,7 @@ def worker(cfg):
             # Only change the unknown label of the training dataset
             train_ds.replace_negative_label()
             val_ds.replace_negative_label()
-        elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface", "magface"]:
+        elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface", "magface", 'smsoftmax']:
             # remove the negative label from softmax training set, not from val set!
             train_ds.remove_negative_label()
     else:
@@ -336,6 +336,7 @@ def worker(cfg):
         loss = JointLoss(
             loss_1=EntropicOpensetLoss(n_classes, cfg.loss.w),
             loss_2=ObjectosphereLoss(xi, symmetric=symmetric),
+            # loss_2=objectoSphere_loss(xi),
             lmbd=lmbd,
             loss_1_requires_features=False,
             loss_2_requires_features=True,
@@ -368,7 +369,7 @@ def worker(cfg):
         loss = MagFaceLoss(
             lambda_g=hyperparams['lambda_g']
         )
-    elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface"]:
+    elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface", 'smsoftmax']:
         # We need to ignore the index only for validation loss computation
         loss = torch.nn.CrossEntropyLoss(ignore_index=-1)
     elif cfg.loss.type in ["garbage", 'cosface-garbage', 'arcface-garbage']:
