@@ -53,7 +53,7 @@ def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
         logits, features = model(images, labels)
 
         # Calculate loss
-        if cfg.loss.type in ['magface', 'cosos-f', 'cosos-v', 'cosos-m', 'cosos-s', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-n', 'objectosphere']:
+        if cfg.loss.type in ['magface', 'cosos-f', 'cosos-v', 'cosos-m', 'cosos-s', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere']:
             j = loss_fn(logits, labels, features)
         else:
             j = loss_fn(logits, labels)
@@ -101,7 +101,7 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
             scores = torch.nn.functional.softmax(logits, dim=1)
 
             # Calculate loss
-            if cfg.loss.type in ['magface', 'cosos-v', 'cosos-m', 'cosos-f', 'cosos-s', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-n', 'objectosphere']:
+            if cfg.loss.type in ['magface', 'cosos-v', 'cosos-m', 'cosos-f', 'cosos-s', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere']:
                 j = loss_fn(logits, labels, features)
             else:
                 j = loss_fn(logits, labels)
@@ -298,7 +298,7 @@ def worker(cfg):
 
     # set loss
     loss = None
-    if cfg.loss.type in ["entropic", 'cosos-m', 'cosos-v', 'cosos-f', 'cosos-s', 'coseos', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-n', 'objectosphere']:
+    if cfg.loss.type in ["entropic", 'cosos-m', 'cosos-v', 'cosos-f', 'cosos-s', 'coseos', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere']:
         # number of classes - 1 since we have no label for unknown
         n_classes = train_ds.label_count - 1
     else:
@@ -326,15 +326,33 @@ def worker(cfg):
 
     # select loss function
     if cfg.loss.type in ["entropic", 'coseos']:
+        # we select entropic loss using class weights for the first
+        class_weights = device(train_ds.calculate_class_weights())
+        print(class_weights)
+        unk_weight = class_weights[0]
+        known_weights = class_weights[1:]
+        print(unk_weight)
+        print(known_weights)
+        loss = EntropicOpensetLoss(n_classes, unk_weight=unk_weight, known_weights=known_weights)
         # We select entropic loss using the unknown class weights from the config file
-        loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
+        # loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
     elif cfg.loss.type == 'objectosphere':
         lmbd = hyperparams['lambda_os']
         xi = hyperparams['xi']
         symmetric = hyperparams['symmetric']
+        eos_loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
+
+        # # uncomment to use class weights for loss
+        # class_weights = device(train_ds.calculate_class_weights())
+        # print(class_weights)
+        # unk_weight = class_weights[0]
+        # known_weights = class_weights[1:]
+        # print(unk_weight)
+        # print(known_weights)
+        # eos_loss = EntropicOpensetLoss(n_classes, unk_weight=unk_weight, known_weights=known_weights)
 
         loss = JointLoss(
-            loss_1=EntropicOpensetLoss(n_classes, cfg.loss.w),
+            loss_1=eos_loss,
             loss_2=ObjectosphereLoss(xi, symmetric=symmetric),
             # loss_2=objectoSphere_loss(xi),
             lmbd=lmbd,

@@ -22,7 +22,7 @@ def command_line_options(command_line_arguments=None):
     # directory parameters
     parser.add_argument(
         "--losses", "-l",
-        choices = ["entropic", "softmax", "garbage", "sphereface", "cosface", "arcface", "magface", "cosos-f", "cosos-m", "cosos-v", 'cosos-s', "coseos", 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-n', 'objectosphere', 'cosface-garbage', 'arcface-garbage', 'smsoftmax'],
+        choices = ["entropic", "softmax", "garbage", "sphereface", "cosface", "arcface", "magface", "cosos-f", "cosos-m", "cosos-v", 'cosos-s', "coseos", 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'cosface-garbage', 'arcface-garbage', 'smsoftmax'],
         nargs="+",
         default = ["entropic", "softmax", "garbage"],
         help="Which loss functions to evaluate"

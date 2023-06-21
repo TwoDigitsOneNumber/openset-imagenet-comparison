@@ -30,6 +30,33 @@ class EntropicOpensetLoss:
         return self.cross_entropy(logits, categorical_targets)
 
 
+# class EntropicOpensetLoss:
+#     """ Taken from vast, modified to accept mini batches without positive examples."""
+#     def __init__(self, num_of_classes, unk_weight=1, known_weights=None):
+#         self.class_count = num_of_classes
+#         self.eye = tools.device(torch.eye(self.class_count))
+#         self.unknowns_multiplier = unk_weight / self.class_count
+#         self.ones = tools.device(torch.ones(self.class_count)) * self.unknowns_multiplier
+#         self.cross_entropy = torch.nn.CrossEntropyLoss(weight=known_weights)
+#         # self.unk_weight = unk_weight
+#         # self.known_weights = known_weights
+
+#     def __call__(self, logits, targets):
+#         categorical_targets = tools.device(torch.zeros(logits.shape))
+#         unk_idx = targets < 0
+#         kn_idx = ~unk_idx
+#         # check if there are known samples in the batch
+#         if torch.any(kn_idx):
+#             categorical_targets[kn_idx, :] = self.eye[targets[kn_idx]]
+
+#         categorical_targets[unk_idx, :] = (
+#             self.ones.expand(
+#                 torch.sum(unk_idx).item(), self.class_count
+#             )
+#         )
+#         return self.cross_entropy(logits, categorical_targets)
+
+
 class MagFaceLoss:
     def __init__(self, lambda_g=35, u_a=110):
         self.lambda_g = lambda_g

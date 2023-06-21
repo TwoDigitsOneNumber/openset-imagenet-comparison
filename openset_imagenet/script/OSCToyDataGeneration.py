@@ -13,11 +13,14 @@ import os
 import shutil
 
 # set path parameters
-EMNIST_SOUCRCE_PATH = '/local/scratch/bergh/'
-TARGET_DATA_PATH = '/local/scratch/bergh/OSCToyData'
+DATA_SOUCRCE_PATH = '/local/scratch/bergh/'
+TARGET_DATA_PATH = '/local/scratch/bergh/OSCToyData2'
 # DEVANAGARI_SOURCE_PATH = '/local/scratch/bergh/DevanagariHandwrittenCharacterDataset/Test'
 # DEVANAGARI_TARGET_PATH = os.path.join(TARGET_DATA_PATH, 'test')
 
+def transpose(x):
+    """Used for correcting rotation of EMNIST Letters"""
+    return x.transpose(2,1)
 
 def create_new_dataset(dataset, data_path, dataset_name, label_map):
     """data will get stored as data_path/dataset_name/original_label/index.png, where index is just an increasing integer."""
@@ -52,7 +55,7 @@ def create_new_dataset(dataset, data_path, dataset_name, label_map):
         # save figure
         if not os.path.exists(os.path.join(data_path, filepath)):
             os.mkdir(os.path.join(data_path, filepath))
-        img = transforms.functional.rotate(img, 90)
+        # img = transforms.functional.rotate(img, 90)
         img.save(os.path.join(data_path, filepath, filename))
 
         # add figure path/name to labels (path/name should be original_label/filename.png)
@@ -119,15 +122,25 @@ def main():
     # load EMNIST data from torchvision
 
     # needs to be transformed, for some reason it is all flipped (and rotated, see later)
-    transform = transforms.Compose([
-        transforms.RandomHorizontalFlip(1)
+    transform_emnist = transforms.Compose([
+        # transforms.RandomHorizontalFlip(1)
+        transforms.ToTensor(), 
+        transpose,
+        transforms.ToPILImage()
+    ])
+    transform_mnist = transforms.Compose([
+        # transforms.RandomHorizontalFlip(1)
+        transforms.ToTensor(),
+        transforms.ToPILImage()
     ])
 
     # load training and test sets
-    digits_all    = torchvision.datasets.EMNIST(root=EMNIST_SOUCRCE_PATH, split='mnist',   train=True, transform=transform, download=True)
-    letters_all   = torchvision.datasets.EMNIST(root=EMNIST_SOUCRCE_PATH, split='letters', train=True, transform=transform, download=True)
-    digits_test   = torchvision.datasets.EMNIST(root=EMNIST_SOUCRCE_PATH, split='mnist',   train=False, transform=transform, download=True)
-    letters_test  = torchvision.datasets.EMNIST(root=EMNIST_SOUCRCE_PATH, split='letters', train=False, transform=transform, download=True)
+    # digits_all    = torchvision.datasets.EMNIST(root=EMNIST_SOUCRCE_PATH, split='mnist',   train=True, transform=transform, download=True)
+    # letters_all   = torchvision.datasets.EMNIST(root=EMNIST_SOUCRCE_PATH, split='letters', train=True, transform=transform, download=True)
+    digits_all    = torchvision.datasets.MNIST(root=DATA_SOUCRCE_PATH, train=True, transform=transform_mnist, download=True)
+    letters_all   = torchvision.datasets.EMNIST(root=DATA_SOUCRCE_PATH, split='letters',   train=True, transform=transform_emnist, download=True)
+    digits_test   = torchvision.datasets.MNIST(root=DATA_SOUCRCE_PATH, train=False, transform=transform_mnist, download=True)
+    letters_test  = torchvision.datasets.EMNIST(root=DATA_SOUCRCE_PATH, split='letters', train=False, transform=transform_emnist, download=True)
 
     # change targets from letters from [1-26] to [10,35]
     letters_all.targets += 9

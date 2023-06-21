@@ -45,7 +45,7 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
         "--losses", "-l",
         nargs = "+",
-        choices = ('softmax', 'garbage', 'entropic', 'sphereface', 'cosface', 'arcface', 'magface', 'cosos-f', 'cosos-m', 'cosos-v', 'cosos-s', 'coseos', 'arcos-s', 'arcos-v', 'arcos-f', 'softmaxos-s', 'softmaxos-n', 'objectosphere', 'cosface-garbage', 'arcface-garbage', 'smsoftmax'),
+        choices = ('softmax', 'garbage', 'entropic', 'sphereface', 'cosface', 'arcface', 'magface', 'cosos-f', 'cosos-m', 'cosos-v', 'cosos-s', 'coseos', 'arcos-s', 'arcos-v', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'cosface-garbage', 'arcface-garbage', 'smsoftmax'),
         default = ('softmax', 'entropic', 'cosface', 'cosos-v'),
         help = "Select the loss functions that should be included into the plot"
     )
@@ -403,11 +403,23 @@ def plot_angle_distributions(args, angles, ground_truths, pdf):
                         label=category_name[cat], linewidth=linewidth
                     )
 
+                # add wald confidence interval based on avg std and avg mean
+                if suffix == 'avg':
+                    for sample_type in ['negative', 'unknown']:
+                        avg_mean = numpy.mean(distributions[sample_type+'_avg'][1])
+                        avg_std  = numpy.mean(distributions[sample_type+'_std'][1])
+
+                        n = len(distributions[sample_type+'_std'][1])
+                        deviation = 1.96 * avg_std / numpy.sqrt(n)
+
+                        ax.axvline(avg_mean+deviation, linestyle='dotted', color=category_color[sample_type+'_avg'])
+                        ax.axvline(avg_mean-deviation, linestyle='dotted', color=category_color[sample_type+'_std'], label='95% Wald CI')
+
                 # axis formating
                 if suffix != 'std':
                     ax.set_xlim(0, numpy.pi)
-                ax.set_xticks(x_tick)
-                ax.set_xticklabels(x_label)
+                    ax.set_xticks(x_tick)
+                    ax.set_xticklabels(x_label)
                 ax.legend()
 
 

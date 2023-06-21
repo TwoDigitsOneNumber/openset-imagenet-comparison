@@ -1,20 +1,20 @@
 sphereface:
-  s: 14  # paper default: 30
+  s: 12  # paper default: 30
   m: 1.5  # paper default: 1.5
 
 cosface:
-  s: 14  # paper default: 64
+  s: 12  # paper default: 64
   m: 0.15  # paper default: 0.35; see paper suplement for upper bound
   garbage:
-    s: 14
-    m: 0.35
+    s: 12
+    m: 0.15
 
 arcface:
-  s: 14  # paper default: 64
+  s: 12  # paper default: 64
   m: 0.2  # paper default: 0.5
   garbage:
-    s: 14
-    m: 0.5
+    s: 12
+    m: 0.2
 
 magface:
   s: 14  # paper default: 64
@@ -28,14 +28,14 @@ cosos:
   s:  # variant, e.g. cosos-s, cosos-v, ...
     s: null  # null gets convertet to None
     m: 0.15  # 0.35
-    xi: 27
+    xi: 12
     lambda_os: 0.01
     variable_magnitude_during_testing: True
     symmetric: True  # symmetric penalty on deviation xi-||F(x)|| of knowns
   v:
     s: null  # null gets convertet to None
     m: 0.15  # 0.35
-    xi: 27
+    xi: 12
     lambda_os: 0.01
     variable_magnitude_during_testing: True
     symmetric: False  # symmetric penalty on deviation xi-||F(x)|| of knowns
@@ -58,14 +58,14 @@ arcos:
   s:  # variant, e.g. arcos-s, arcos-v, ...
     s: null  # null gets convertet to None
     m: 0.2  # 0.5
-    xi: 27
+    xi: 12
     lambda_os: 0.01
     variable_magnitude_during_testing: True
     symmetric: True  # symmetric penalty on deviation xi-||F(x)|| of knowns
   v:
     s: null  # null gets convertet to None
     m: 0.2  # 0.5
-    xi: 27
+    xi: 12
     lambda_os: 0.01
     variable_magnitude_during_testing: True
     symmetric: False  # symmetric penalty on deviation xi-||F(x)|| of knowns
@@ -80,11 +80,11 @@ arcos:
 softmaxos:
   s:
     lambda_os: 0.01
-    xi: 24
+    xi: 12
     symmetric: True
-  n:
+  v:
     lambda_os: 0.01
-    xi: 24
+    xi: 12
     symmetric: False
   
 objectosphere:
@@ -93,4 +93,4 @@ objectosphere:
   symmetric: False
 
 smsoftmax:
-  m: 50
+  m: 0.5

@@ -32,7 +32,7 @@ def set_logits(loss_type, in_features, out_features, logit_bias):
     # if loss_type not in ["sphereface", "cosface", "arcface", "magface", 'cosos-f', 'cosos-v', 'cosos-m', 'coseos']:
 
     # use linear logits for softmax and entropic loss
-    if loss_type in ['softmax', 'entropic', 'garbage', 'softmaxos-s', 'softmaxos-n', 'objectosphere']:
+    if loss_type in ['softmax', 'entropic', 'garbage', 'softmaxos-s', 'softmaxos-v', 'objectosphere']:
         loss_type = 'linear'
 
     # pick appart type from its variant
