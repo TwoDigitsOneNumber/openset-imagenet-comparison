@@ -178,24 +178,37 @@ STYLES = {
     "entropic": "dashed",
     "softmax": "solid",
     "garbage": "dotted",
-    "objectosphere": "dashdot",
-    "smsoftmax": "dotted",
-    "softmaxos-s": "dashdot",
-    "softmaxos-v": "dotted",
-    "sphereface": "dashed",
+    "objectosphere": "solid",
     "cosface-garbage": "dashed",
     "arcface-garbage": "dashdot",
+    # margin/face losses (HFN)
+    "sphereface": "dashed",
     "cosface": "dashdot",
     "arcface": "dotted",
     "magface": "solid",
+    "smsoftmax": "dashed",
+    # face losses (SFN)
+    'cosface_sfn': "dashdot",
+    'arcface_sfn': "dotted",
+    # margin-eos (HFN)
+    "coseos": "solid",
+    "arceos": "dashdot",
+    "smsoftmaxeos": "dotted",
+    # margin-eos (SFN)
+    "arceos_sfn": "dashdot",
+    "coseos_sfn": "solid",
+    # margin-os
+    "softmaxos-s": "dotted",
+    "softmaxos-v": "dotted",
     "cosos-v": "dotted",
     "cosos-s": "dashdot",
     "cosos-f": "dashed",
     "cosos-m": "solid",
-    "coseos": "solid",
     "arcos-v": "dotted",
-    "arcos-s": "dashdot",
+    "arcos-s": "dashed",
     "arcos-f": "dashdot",
+    "smsoftmaxos-v": "dotted",
+    "smsoftmaxos-s": "dotted",
     "p1": "dashed",
     "p2": "dotted",
     "p3": "solid",
@@ -213,7 +226,7 @@ NAMES = {
     "objectosphere": "Objectosphere",
     "smsoftmax": "SM-Softmax",
     "softmaxos-s": "SoftmaxOS-S",
-    "softmaxos-v": "SoftmaxOS-N",
+    "softmaxos-v": "SoftmaxOS-V",
     "garbage": "Garbage",
     "cosface-garbage": "CosFace-Garbage",
     "arcface-garbage": "ArcFace-Garbage",
@@ -221,6 +234,10 @@ NAMES = {
     "cosface": "CosFace",
     "arcface": "ArcFace",
     "magface": "MagFace",
+    'cosface_sfn': "CosFace (SFN)",
+    'arcface_sfn': "ArcFace (SFN)",
+    "arceos_sfn": "ArcEOS (SFN)",
+    "coseos_sfn": "CosEOS (SFN)",
     "cosos-v": "CosOS-V",
     "cosos-s": "CosOS-S",
     "cosos-f": "CosOS-F",
@@ -228,7 +245,11 @@ NAMES = {
     "arcos-v": "ArcOS-V",
     "arcos-s": "ArcOS-S",
     "arcos-f": "ArcOS-F",
+    "smsoftmaxos-v": "SM-SoftmaxOS-V",
+    "smsoftmaxos-s": "SM-SoftmaxOS-s",
     "coseos": "CosEOS",
+    "arceos": "ArcEOS",
+    "smsoftmaxeos": "SM-SoftmaxEOS",
     "p1": "P_1",
     "p2": "P_2",
     "p3": "P_3",
@@ -239,7 +260,7 @@ NAMES = {
     0: "$P_0$"
 }
 
-def plot_single_oscr(fpr, ccr, ax, loss, algorithm, scale, max_ccr):
+def plot_single_oscr(fpr, ccr, ax, loss, algorithm, scale, max_ccr, lower_bound_CCR=None, lower_bound_FPR=None):
 
     linewidth = 1.1
     max_ccr = min(1, max_ccr*1.1)
@@ -257,11 +278,23 @@ def plot_single_oscr(fpr, ccr, ax, loss, algorithm, scale, max_ccr):
         ax.xaxis.set_minor_formatter(ticker.NullFormatter())
     elif scale == 'semilog':
         ax.set_xscale('log')
+
         # Manual limits
-        ax.set_ylim(0.0, max(0.8, max_ccr))
-        ax.set_xlim(8 * 1e-5, 1.4)
+        if lower_bound_CCR is not None and lower_bound_CCR < max(0.8, max_ccr):
+            ax.set_ylim(lower_bound_CCR, max(0.8, max_ccr))
+        else:
+            ax.set_ylim(0.0, max(0.8, max_ccr))
+
+        if lower_bound_FPR is not None:
+            ax.set_xlim(lower_bound_FPR, 1.01)
+        else:
+            ax.set_xlim(8 * 1e-5, 1.4)
+
         # Manual ticks
-        ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))  # MaxNLocator(7))  #, prune='lower'))
+        if lower_bound_CCR is not None and lower_bound_CCR < max(0.8, max_ccr):
+            ax.yaxis.set_major_locator(ticker.MultipleLocator(0.01))  # MaxNLocator(7))  #, prune='lower'))
+        else:
+            ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))  # MaxNLocator(7))  #, prune='lower'))
         ax.xaxis.set_major_locator(LogLocator(base=10, numticks=10))
         locmin = ticker.LogLocator(base=10.0, subs=np.linspace(0, 1, 10, False), numticks=12)
         ax.xaxis.set_minor_locator(locmin)
@@ -283,7 +316,7 @@ def plot_single_oscr(fpr, ccr, ax, loss, algorithm, scale, max_ccr):
     return ax
 
 
-def plot_oscr(arrays, gt, scale='linear', title=None, ax_label_font=13, ax=None, unk_label=-1,):
+def plot_oscr(args, arrays, gt, scale='linear', title=None, ax_label_font=13, ax=None, unk_label=-1, lower_bound_CCR=None, lower_bound_FPR=None):
     """Plots OSCR curves for all given scores.
     The scores are stored as arrays: Float array of dim [N_samples, N_classes].
     The arrays contain scores for various loss functions and algorithms as arrays[loss][algorithm].
@@ -292,19 +325,24 @@ def plot_oscr(arrays, gt, scale='linear', title=None, ax_label_font=13, ax=None,
     max_ccr = 0
 
     for loss, loss_arrays in arrays.items():
-        for algorithm, scores in loss_arrays.items():
+        for algorithm in args.algorithms:
+        # for algorithm, scores in loss_arrays.items():
+            scores = loss_arrays[algorithm]
             ccr, fpr = calculate_oscr(gt, scores, unk_label)
 
             max_ccr_curr = np.amax(ccr)
             if max_ccr_curr > max_ccr:
                 max_ccr = max_ccr_curr
-
+            
             ax = plot_single_oscr(fpr, ccr,
                               ax=ax,
                               loss=loss,
                               algorithm=algorithm,
                               scale=scale,
-                              max_ccr=max_ccr)
+                              max_ccr=max_ccr,
+                              lower_bound_CCR=lower_bound_CCR,
+                              lower_bound_FPR=lower_bound_FPR
+                              )
 
     if title is not None:
         ax.set_title(title, fontsize=ax_label_font)
@@ -465,17 +503,20 @@ def get_angle_distributions(angles, gt):
 
     distributions = {}
     distributions['known_true'] = np.histogram(angle_known_true_class, bins=bins, density=density)
-    # distributions['known_smallest'] = np.histogram(np.min(angles_known_nontrue_classes, axis=1), bins=bins, density=density)
+
+    distributions['known_smallest'] = np.histogram(np.min(angles_known_nontrue_classes, axis=1), bins=bins, density=density)
     distributions['unknown_smallest'] = np.histogram(np.min(unknowns, axis=1), bins=bins, density=density)
     distributions['negative_smallest'] = np.histogram(np.min(negatives, axis=1), bins=bins, density=density)
 
-    # distributions['known_wrong_max'] = np.histogram(np.max(angles_known_nontrue_classes, axis=1), bins=bins, density=density)
+    distributions['known_max'] = np.histogram(np.max(angles_known_nontrue_classes, axis=1), bins=bins, density=density)
     distributions['unknown_max'] = np.histogram(np.max(unknowns, axis=1), bins=bins, density=density)
     distributions['negative_max'] = np.histogram(np.max(negatives, axis=1), bins=bins, density=density)
 
+    distributions['known_avg'] = np.histogram(np.mean(angles_known_nontrue_classes, axis=1), bins=bins, density=density)
     distributions['unknown_avg'] = np.histogram(np.mean(unknowns, axis=1), bins=bins, density=density)
     distributions['negative_avg'] = np.histogram(np.mean(negatives, axis=1), bins=bins, density=density)
 
+    distributions['known_std'] = np.histogram(np.mean(angles_known_nontrue_classes, axis=1), bins=bins, density=density)
     distributions['unknown_std'] = np.histogram(np.std(unknowns, axis=1), bins=n_bins, density=density)
     distributions['negative_std'] = np.histogram(np.std(negatives, axis=1), bins=n_bins, density=density)
 

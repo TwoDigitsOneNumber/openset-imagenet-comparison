@@ -14,7 +14,7 @@ import shutil
 
 # set path parameters
 DATA_SOUCRCE_PATH = '/local/scratch/bergh/'
-TARGET_DATA_PATH = '/local/scratch/bergh/OSCToyData2'
+TARGET_DATA_PATH = '/local/scratch/bergh/OSCToyData3'
 # DEVANAGARI_SOURCE_PATH = '/local/scratch/bergh/DevanagariHandwrittenCharacterDataset/Test'
 # DEVANAGARI_TARGET_PATH = os.path.join(TARGET_DATA_PATH, 'test')
 
@@ -95,14 +95,24 @@ def create_new_dataset(dataset, data_path, dataset_name, label_map):
 #     return pd.concat([labels_df, labels_df_unk], ignore_index=True)
 
 
+def remove_from_lists(lists, remove):
+    for i in remove:
+        for l in lists:
+            if i in l:
+                l.remove(i)
+
+
 def main():
 
     # --------------------------------------------------
     # define a map from original labels to new labels with negatives
 
     kn_labels = list(range(10))  # digits [0-9]
-    neg_labels = list(range(10, 10+13))  # first 13 letters [A-M]
-    unk_labels = list(range(10+13, 10+13+13))  # last 13 letters [N-Z]
+    neg_labels = list(range(10, 10+14))  # first 14 letters [A-N]
+    unk_labels = list(range(10+14, 10+13+13))  # last 12 letters [O-Z]
+
+    # remove letters g (16), i (18), l (21), o (24)
+    remove_from_lists([kn_labels, neg_labels, unk_labels], [16,18,21,24])
 
     # map original labels to new labels
     label_map = {}
@@ -146,10 +156,12 @@ def main():
     letters_all.targets += 9
     letters_test.targets += 9
 
-    # take first half of letters as negatives (i.e., [A-M])
-    first_half_labels  = list(range(10,23))
-    first_half_indices   = [idx for idx, target in enumerate(letters_all.targets) if target in first_half_labels]
-    negatives = torch.utils.data.Subset(letters_all, first_half_indices)
+    # take first half of letters as negatives (i.e., 11 letters [A-N])
+    negative_indices = [idx for idx, target in enumerate(letters_all.targets) if target in neg_labels]
+    negatives = torch.utils.data.Subset(letters_all, negative_indices)
+    # only take samples from the selected classes/labels (for the test set of letters)
+    letters_test_indices  = [idx for idx, target in enumerate(letters_test.targets) if (target in unk_labels) or (target in neg_labels)]
+    letters_test  = torch.utils.data.Subset(letters_test, letters_test_indices)
 
     # split negatives train and validation sets
     knowns_train,  knowns_val = torch.utils.data.random_split(digits_all, [.8, .2])
@@ -162,28 +174,28 @@ def main():
 
 
     print(f"""
-    Dataset sizes:
-        - train: {len(train_ds)}
-        - val:   {len(val_ds)}
-        - test:  {len(test_ds)}
-    """)
+Dataset sizes:
+    - train: {len(train_ds)}
+    - val:   {len(val_ds)}
+    - test:  {len(test_ds)}""")
 
-    print(f"""
-    labels (as classes):
-          - digits:  {digits_all.classes}
-          - digits:  {digits_all.train_labels.unique()}
-          - letters: {letters_all.classes}
-          - letters: {letters_all.train_labels.unique()}
-    """)
+#     print(f"""
+# labels (as classes):
+#         - digits:  {digits_all.classes}
+#         - digits:  {digits_all.train_labels.unique()}
+#         - letters: {letters_all.classes}
+#         - letters: {letters_all.train_labels.unique()}""")
 
 
-    print(f"nr original labels (test): {len(digits_test.classes) + len(letters_test.classes)}")
+    # print(f"\nnr original labels (test): {len(digits_test.classes) + len(letters_test.classes)}")
     print(f"nr labels that are mapped: {len(label_map.keys())}")
     new_labels = []
     [new_labels.append(label) for _, label in label_map.items()]
     new_labels = np.unique(new_labels)
     print(f"nr new labels: {len(new_labels)}")
     print(f"new labels: {new_labels}")
+    print(f"mapping:")
+    print(label_map)
 
 
 
@@ -198,9 +210,9 @@ def main():
     # labels_df_test = move_and_add_devanagari_data(DEVANAGARI_SOURCE_PATH, DEVANAGARI_TARGET_PATH, labels_df_test)
 
     # save label_train.csv etc without column names
-    labels_df_train.to_csv(os.path.join(TARGET_DATA_PATH, 'labels_train.csv'), index=False, header=False)
-    labels_df_val.to_csv(  os.path.join(TARGET_DATA_PATH, 'labels_val.csv'),   index=False, header=False)
-    labels_df_test.to_csv( os.path.join(TARGET_DATA_PATH, 'labels_test.csv'),  index=False, header=False)
+    labels_df_train.to_csv(os.path.join(TARGET_DATA_PATH, 'p0_train.csv'), index=False, header=False)
+    labels_df_val.to_csv(  os.path.join(TARGET_DATA_PATH, 'p0_val.csv'),   index=False, header=False)
+    labels_df_test.to_csv( os.path.join(TARGET_DATA_PATH, 'p0_test.csv'),  index=False, header=False)
 
 
 if __name__ == '__main__':

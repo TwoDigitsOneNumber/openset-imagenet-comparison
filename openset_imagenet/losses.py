@@ -74,6 +74,17 @@ class MagFaceLoss:
         return self.cross_entropy(logits, targets) + self.lambda_g * self.calc_loss_G(a)
 
 
+class RingLoss:
+    """Computes ring loss"""
+    def __init__(self, xi):
+        self.xi = xi
+
+    def __call__(self, logits, targets, features):
+        # compute feature magnitudes a
+        a = torch.linalg.norm(features, ord=2, dim=1)
+        return torch.mean(torch.square(self.xi-a))
+
+
 class ObjectosphereLoss:
     """Computes only the objectosphere loss, i.e.: (J_R - J_E) / lambda. See equation (2) in "Reducing Network Agnostophobia (2018)" by Akshay Raj Dhamija, Manuel Günther, Terrance E. Boult.
 
@@ -105,7 +116,7 @@ class ObjectosphereLoss:
 
 
 class objectoSphere_loss:
-    """taken from https://github.com/Vastlab/vast/blob/main/vast/losses/losses.py. identical implementation to ObjectosphereLoss."""
+    """taken (and slightly adapted for compatibility) from https://github.com/Vastlab/vast/blob/main/vast/losses/losses.py. identical results compared to ObjectosphereLoss."""
     def __init__(self, xi=50.0):
         self.knownsMinimumMag = xi
 

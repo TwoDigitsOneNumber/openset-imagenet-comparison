@@ -5,7 +5,7 @@ import math
 import yaml
 
 
-def set_logits(loss_type, in_features, out_features, logit_bias):
+def set_logits(cfg, loss_type, in_features, out_features, logit_bias):
     """return logits based on the specified loss type
     
     parameters:
@@ -24,37 +24,58 @@ def set_logits(loss_type, in_features, out_features, logit_bias):
         'cosface': CosFace,
         'arcface': ArcFace,
         'magface': MagFace,
-        'cosos': CosineMargin,
-        'arcos': AngularMargin,
-        'smsoftmax': LogitMargin
+        'cosine_margin': CosineMargin,
+        'angular_margin': AngularMargin,
+        'logit_margin': LogitMargin
     }
 
-    # if loss_type not in ["sphereface", "cosface", "arcface", "magface", 'cosos-f', 'cosos-v', 'cosos-m', 'coseos']:
-
-    # use linear logits for softmax and entropic loss
-    if loss_type in ['softmax', 'entropic', 'garbage', 'softmaxos-s', 'softmaxos-v', 'objectosphere']:
-        loss_type = 'linear'
 
     # pick appart type from its variant
     variant = None
     if '-' in loss_type:
         loss_type, variant = loss_type.split('-')
 
-    # load hyperparameters for the respectiev loss function
-    if not loss_type == 'linear':
-        hyperparams = yaml.safe_load(open('config/hyperparameters.yaml'))[loss_type]
-    else:
+    # use linear logits for softmax and entropic loss
+    if loss_type in ['softmax', 'entropic', 'garbage', 'softmaxos', 'objectosphere']:
         hyperparams = {}
+        logit_type = 'linear'
+    else:
+        # load hyperparams
+        hyperparams = yaml.safe_load(open(f'config/p{cfg.protocol}_hyperparameters.yaml'))[loss_type]
+        if variant:
+            hyperparams = hyperparams[variant]
 
-    if variant:
-        hyperparams = hyperparams[variant]
+        # choose correspongind logit type
+        if loss_type in ['cosface']:
+            logit_type = 'cosface'
+        elif loss_type in ['arcface']:
+            logit_type = 'arcface'
+        elif loss_type in ['sphereface']:
+            logit_type = 'sphereface'
+        elif loss_type in ['smsoftmax', 'smsoftmaxeos', 'smsoftmaxos']:
+            logit_type = 'logit_margin'
+        elif loss_type in ['cosos', 'coseos', 'cosface_sfn', 'coseos_sfn']:
+            logit_type = 'cosine_margin'
+        elif loss_type in ['arcos', 'arceos', 'arcface_sfn', 'arceos_sfn']:
+            logit_type = 'angular_margin'
+        else:
+            raise ValueError('invalid loss type specified.')
+        
+
+
+
+    # # load hyperparameters for the respectiev loss function
+    # if not loss_type == 'linear':
+    # else:
+    #     hyperparams = {}
+
     
-    return logit_map[loss_type](
+    return logit_map[logit_type](
         in_features=in_features, 
         out_features=out_features, 
         logit_bias=logit_bias,
         **hyperparams
-    )
+    ), logit_type
 
 
 class Linear(nn.Module):
@@ -398,10 +419,10 @@ class LogitMargin(nn.Module):
             logits = F.normalize(features, dim=1).mm(self.w) * self.s  # \cos(\theta_{i,j})
 
         with torch.no_grad():
+            margin = torch.zeros_like(logits)
             if labels is not None:  # training time forward pass
                 # distinguish knowns from negatives/unknowns (via boolean mask) and only add margin to knowns
                 kn_idx = labels >= 0
-                margin = torch.zeros_like(logits)
                 margin[kn_idx,:] = margin[kn_idx,:].scatter(1, labels[kn_idx].view(-1, 1), -self.m, reduce='add')
                 # logits[kn_idx,:] = logits[kn_idx,:].scatter(1, labels[kn_idx].view(-1, 1), -self.m, reduce='add')
         

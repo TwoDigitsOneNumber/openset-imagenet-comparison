@@ -1,6 +1,10 @@
+\begin{table}[t]
+\centering
+\begin{tabularx}{.7\textwidth}{c|c|cccc}
 \bf Algorithm & \bf Loss & $10^{-3}$ & $10^{-2}$ & $10^{-1}$ & $1$\\\hline\hline
-\multirow{4}{*}{Threshold} & Softmax & \textcolor{blue}{\bf 0.0000} & \underline{0.0000} & \underline{0.0022} & \underline{0.0305}\\
- & SphereFace & \textcolor{blue}{\bf 0.0000} & \textcolor{blue}{\bf 0.0007} & \underline{0.0064} & \underline{0.0286}\\
- & CosFace & \textcolor{blue}{\bf 0.0000} & \textcolor{blue}{\bf 0.0007} & \textcolor{blue}{\bf 0.0076} & \textcolor{blue}{\bf 0.0366}\\
- & ArcFace & \textcolor{blue}{\bf 0.0000} & \textcolor{blue}{\bf 0.0007} & \underline{0.0060} & \underline{0.0341}\\
+\multirow{1}{*}{Threshold} & Softmax & & \textcolor{blue}{\bf 0.1324} & \it 0.5783 & \textcolor{blue}{\bf 0.6591}\\
 \hline
+\multirow{1}{*}{MaxLogits} & Softmax & \textcolor{blue}{\bf 0.0000} & \it 0.0000 & \textcolor{blue}{\bf 0.6466} & \textcolor{blue}{\bf 0.6591}\\
+\hline
+\end{tabularx}
+\end{table}

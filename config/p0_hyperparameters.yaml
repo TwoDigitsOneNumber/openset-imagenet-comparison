@@ -1,0 +1,171 @@
+sphereface:
+  s: 15  # paper default: 30
+  m: 1.2  # paper default: 1.2, code default: 1.5
+
+cosface:
+  s: 15  # paper default: 64
+  m: 0.35  # paper default: 0.35; see paper suplement for upper bound
+  garbage:
+    s: 15
+    m: 0.35
+
+arcface:
+  s: 15  # paper default: 64
+  m: 0.5  # paper default: 0.5, 0.2 worked well on p0 with 2-dim deep features
+  garbage:
+    s: 15
+    m: 0.5
+
+cosface_sfn:
+    s: null  # null gets convertet to None
+    m: 0.35  # 0.35
+    xi: 15
+    lambda_os: 0.01
+    variable_magnitude_during_testing: True
+    symmetric: True  # symmetric penalty on deviation xi-||F(x)|| of knowns
+
+arcface_sfn:
+    s: null  # null gets convertet to None
+    m: 0.5  # 0.5
+    xi: 15
+    lambda_os: 0.01
+    variable_magnitude_during_testing: True
+    symmetric: True  # symmetric penalty on deviation xi-||F(x)|| of knowns
+
+
+# magface:
+#   s: 15  # paper default: 64
+#   l_a: 10  # paper default: 10 (lower bound on feature magnitude)
+#   u_a: 110  # paper default: 110 (upper bound on feature magnitude)
+#   l_m: 0.4  # paper default: 0.4 (lower bound on angle)
+#   u_m: 0.8  # paper default: 0.8 (upper bound on angle)
+#   lambda_g: 35  # paper default: 35
+
+softmaxos:
+  s:
+    lambda_os: 0.01
+    xi: 15
+    symmetric: True
+  # v:
+  #   lambda_os: 0.01
+  #   xi: 15
+  #   symmetric: False
+
+cosos:
+  s:  # variant, e.g. cosos-s, cosos-v, ...
+    s: null  # null gets convertet to None
+    m: 0.35  # 0.35
+    xi: 15
+    lambda_os: 0.01
+    variable_magnitude_during_testing: True
+    symmetric: True  # symmetric penalty on deviation xi-||F(x)|| of knowns
+  # v:
+  #   s: null  # null gets convertet to None
+  #   m: 0.35  # 0.35
+  #   xi: 15
+  #   lambda_os: 0.01
+  #   variable_magnitude_during_testing: True
+  #   symmetric: False  # symmetric penalty on deviation xi-||F(x)|| of knowns
+  # f:
+  #   s: 15  # null gets convertet to None
+  #   m: 0.35  # 0.35
+  #   xi: 15
+  #   lambda_os: 0.1
+  #   variable_magnitude_during_testing: False
+  #   symmetric: False
+  # m:
+  #   s: 15  # null gets convertet to None
+  #   m: 0.35  # 0.35
+  #   xi: 15
+  #   lambda_os: 0.1
+  #   variable_magnitude_during_testing: True
+  #   symmetric: False
+
+arcos:
+  s:  # variant, e.g. arcos-s, arcos-v, ...
+    s: null  # null gets convertet to None
+    m: 0.5  # 0.5
+    xi: 15
+    lambda_os: 0.01
+    variable_magnitude_during_testing: True
+    symmetric: True  # symmetric penalty on deviation xi-||F(x)|| of knowns
+  # v:
+  #   s: null  # null gets convertet to None
+  #   m: 0.5  # 0.5
+  #   xi: 15
+  #   lambda_os: 0.01
+  #   variable_magnitude_during_testing: True
+  #   symmetric: False  # symmetric penalty on deviation xi-||F(x)|| of knowns
+  # f:
+  #   s: 15  # null gets convertet to None
+  #   m: 0.5  # 0.5
+  #   xi: 15
+  #   lambda_os: 0
+  #   variable_magnitude_during_testing: False
+  #   symmetric: False
+
+smsoftmaxos:
+  s:  # variant, e.g. smsoftmaxos-s, smsoftmaxos-v, ...
+    s: null  # null gets convertet to None
+    m: 6  # 6
+    xi: 15
+    lambda_os: 0.01
+    variable_magnitude_during_testing: True
+    symmetric: True  # symmetric penalty on deviation xi-||F(x)|| of knowns
+  # v:
+  #   s: null  # null gets convertet to None
+  #   m: 6  # 6
+  #   xi: 15
+  #   lambda_os: 0.01
+  #   variable_magnitude_during_testing: True
+  #   symmetric: False  # symmetric penalty on deviation xi-||F(x)|| of knowns
+
+coseos:
+    s: 15  # null gets convertet to None
+    m: 0.35  # 0.35
+    lambda_os: 0
+    variable_magnitude_during_testing: False
+  
+arceos:
+    s: 15  # null gets convertet to None
+    m: 0.5  # 0.5
+    lambda_os: 0
+    variable_magnitude_during_testing: False
+
+smsoftmaxeos:
+    s: 15  # null gets convertet to None
+    m: 0  # 0.5
+    xi: 15
+    lambda_os: 0
+    w_normalization: True  # set False for no normalization
+    variable_magnitude_during_testing: False
+    symmetric: True  # symmetric penalty on deviation xi-||F(x)|| of knowns
+  
+# arceos_sfn:
+#     s: 15  # null gets convertet to None
+#     m: 0.5  # 0.5
+#     xi: 15
+#     lambda_os: 0.01
+#     variable_magnitude_during_testing: True
+#     symmetric: True  # symmetric penalty on deviation xi-||F(x)|| of knowns
+#     ring: False
+
+# coseos_sfn:
+#     s: 15  # null gets convertet to None
+#     m: 0.35  # 0.35
+#     xi: 15
+#     lambda_os: 0.01
+#     variable_magnitude_during_testing: True
+#     symmetric: True  # symmetric penalty on deviation xi-||F(x)|| of knowns
+#     ring: False
+  
+objectosphere:
+  xi: 15  # paper default on toy data: 50
+  lambda_os: 0.01  # paper default on toy data: 0.0001
+  symmetric: False
+
+# smsoftmax:
+#   m: .2  # 0.2
+#   s: null  # set null for no normalization
+#   w_normalization: False  # set False for no normalization
+#   variable_magnitude_during_testing: False

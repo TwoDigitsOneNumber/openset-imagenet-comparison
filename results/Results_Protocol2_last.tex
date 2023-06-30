@@ -1,11 +1,10 @@
+\begin{table}[t]
+\centering
+\begin{tabularx}{.7\textwidth}{c|c|cccc}
 \bf Algorithm & \bf Loss & $10^{-3}$ & $10^{-2}$ & $10^{-1}$ & $1$\\\hline\hline
-\multirow{4}{*}{Threshold} & Softmax & 0.0393 & 0.1693 & 0.3720 & \underline{0.6373}\\
- & EOS & \underline{0.0427} & 0.1573 & \underline{0.4200} & \underline{0.6247}\\
- & CosFace & \underline{0.0347} & 0.1247 & 0.4140 & \textcolor{blue}{\bf 0.6700}\\
- & CosOS-V & \it 0.0467 & \textcolor{blue}{\bf 0.1867} & \textcolor{blue}{\bf 0.4500} & \underline{0.6693}\\
+\multirow{3}{*}{Threshold} & SoftmaxOS-S & \textcolor{blue}{\bf 0.0633} & \textcolor{blue}{\bf 0.1887} & \underline{0.4220} & \textcolor{blue}{\bf 0.6673}\\
+ & CosOS-S & & \underline{0.1573} & \textcolor{blue}{\bf 0.4480} & \underline{0.6440}\\
+ & ArcOS-S & & \underline{0.1507} & \underline{0.4173} & \underline{0.6300}\\
 \hline
-\multirow{4}{*}{MaxLogits} & Softmax & \textcolor{blue}{\bf 0.0767} & \underline{0.1713} & \underline{0.4407} & \underline{0.6373}\\
- & EOS & 0.0400 & \underline{0.1700} & 0.4100 & \underline{0.6247}\\
- & CosFace & 0.0193 & \underline{0.1500} & \underline{0.4213} & \textcolor{blue}{\bf 0.6700}\\
- & CosOS-V & 0.0007 & \it 0.1780 & \it 0.4493 & \underline{0.6693}\\
-\hline
+\end{tabularx}
+\end{table}

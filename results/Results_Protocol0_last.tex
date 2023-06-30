@@ -1,11 +1,16 @@
+\begin{table}[t]
+\centering
+\begin{tabularx}{.7\textwidth}{c|c|cccc}
 \bf Algorithm & \bf Loss & $10^{-3}$ & $10^{-2}$ & $10^{-1}$ & $1$\\\hline\hline
-\multirow{4}{*}{Threshold} & Softmax & \underline{0.1152} & \underline{0.3418} & \underline{0.7680} & \underline{0.9744}\\
- & Objectosphere & \textcolor{blue}{\bf 0.9277} & \it 0.9667 & \underline{0.9736} & \underline{0.9736}\\
- & ArcOS-V & 0.8804 & 0.9490 & \it 0.9757 & \textcolor{blue}{\bf 0.9783}\\
- & CosOS-V & 0.7767 & 0.9199 & 0.9623 & \underline{0.9732}\\
+\multirow{4}{*}{Threshold} & EOS & 0.9130 & 0.9747 & 0.9908 & \underline{0.9914}\\
+ & SM-SoftmaxEOS & \it 0.9813 & \it 0.9907 & \underline{0.9915} & \underline{0.9915}\\
+ & CosEOS & 0.9756 & 0.9897 & \textcolor{blue}{\bf 0.9926} & \textcolor{blue}{\bf 0.9926}\\
+ & ArcEOS & 0.9772 & 0.9894 & \underline{0.9921} & \underline{0.9921}\\
 \hline
-\multirow{4}{*}{MaxLogits} & Softmax & 0.0667 & 0.2160 & 0.6867 & \underline{0.9744}\\
- & Objectosphere & \it 0.9228 & \textcolor{blue}{\bf 0.9699} & \underline{0.9736} & \underline{0.9736}\\
- & ArcOS-V & \underline{0.8903} & \underline{0.9648} & \textcolor{blue}{\bf 0.9777} & \textcolor{blue}{\bf 0.9783}\\
- & CosOS-V & \underline{0.7797} & \underline{0.9304} & \underline{0.9678} & \underline{0.9732}\\
+\multirow{4}{*}{MaxLogits} & EOS & \underline{0.9371} & \underline{0.9848} & \underline{0.9910} & \underline{0.9914}\\
+ & SM-SoftmaxEOS & \underline{0.9871} & \underline{0.9911} & \underline{0.9915} & \underline{0.9915}\\
+ & CosEOS & \textcolor{blue}{\bf 0.9901} & \textcolor{blue}{\bf 0.9925} & \textcolor{blue}{\bf 0.9926} & \textcolor{blue}{\bf 0.9926}\\
+ & ArcEOS & \underline{0.9870} & \underline{0.9920} & \underline{0.9921} & \underline{0.9921}\\
 \hline
+\end{tabularx}
+\end{table}

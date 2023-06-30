@@ -13,7 +13,7 @@ from .logits_variants import set_logits
 class ResNet50(nn.Module):
     """Represents a ResNet50 model"""
 
-    def __init__(self, loss_type, fc_layer_dim=1000, out_features=1000, logit_bias=True):
+    def __init__(self, cfg, loss_type, fc_layer_dim=1000, out_features=1000, logit_bias=True):
         """ Builds a ResNet model, with deep features and logits layers.
 
         Args:
@@ -32,7 +32,8 @@ class ResNet50(nn.Module):
         fc_in_features = self.resnet_base.fc.in_features
         self.resnet_base.fc = nn.Linear(in_features=fc_in_features, out_features=fc_layer_dim)
 
-        self.logits = set_logits(
+        self.logits, self.logit_type = set_logits(
+            cfg=cfg,
             loss_type=self.loss_type,
             in_features=fc_layer_dim,
             out_features=out_features,
@@ -136,7 +137,7 @@ class LeNetBottleneck(nn.Module):
     parameters: see ResNet50 in this file.
     """
 
-    def __init__(self, loss_type, deep_feature_dim=2, out_features=10, logit_bias=True):
+    def __init__(self, cfg, loss_type, deep_feature_dim=2, out_features=10, logit_bias=True):
         super(LeNetBottleneck, self).__init__()
 
         self.number_of_classes = out_features
@@ -167,7 +168,8 @@ class LeNetBottleneck(nn.Module):
             nn.Linear(128*3*3, self.deep_feature_dim)
         )
 
-        self.logits = set_logits(
+        self.logits, self.logit_type = set_logits(
+            cfg=cfg,
             loss_type=self.loss_type,
             in_features=self.deep_feature_dim,
             out_features=self.number_of_classes,

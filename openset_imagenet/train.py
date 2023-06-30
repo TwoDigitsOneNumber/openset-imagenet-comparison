@@ -17,9 +17,10 @@ from loguru import logger
 from .metrics import confidence, auc_score_binary, auc_score_multiclass
 from .dataset import ImagenetDataset, OSCToyDataset
 from .model import ResNet50, LeNetBottleneck, load_checkpoint, save_checkpoint, set_seeds
-from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, MagFaceLoss, ObjectosphereLoss, JointLoss, objectoSphere_loss
+from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, MagFaceLoss, ObjectosphereLoss, JointLoss, objectoSphere_loss, RingLoss
 import tqdm
 import yaml
+import json
 
 
 def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
@@ -53,7 +54,7 @@ def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
         logits, features = model(images, labels)
 
         # Calculate loss
-        if cfg.loss.type in ['magface', 'cosos-f', 'cosos-v', 'cosos-m', 'cosos-s', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere']:
+        if cfg.loss.type in ['magface', 'cosos-f', 'cosos-v', 'cosos-m', 'cosos-s', 'smsoftmaxos-s', 'smsoftmaxos-v', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'cosface_sfn', 'arcface_sfn', 'arceos_sfn', 'coseos_sfn']:
             j = loss_fn(logits, labels, features)
         else:
             j = loss_fn(logits, labels)
@@ -101,7 +102,7 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
             scores = torch.nn.functional.softmax(logits, dim=1)
 
             # Calculate loss
-            if cfg.loss.type in ['magface', 'cosos-v', 'cosos-m', 'cosos-f', 'cosos-s', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere']:
+            if cfg.loss.type in ['magface', 'cosos-v', 'cosos-m', 'cosos-f', 'cosos-s', 'smsoftmaxos-s', 'smsoftmaxos-v', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'cosface_sfn', 'arcface_sfn', 'arceos_sfn', 'coseos_sfn']:
                 j = loss_fn(logits, labels, features)
             else:
                 j = loss_fn(logits, labels)
@@ -260,7 +261,7 @@ def worker(cfg):
             # Only change the unknown label of the training dataset
             train_ds.replace_negative_label()
             val_ds.replace_negative_label()
-        elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface", "magface", 'smsoftmax']:
+        elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface", "magface", 'smsoftmax', 'cosface_sfn', 'arcface_sfn']:
             # remove the negative label from softmax training set, not from val set!
             train_ds.remove_negative_label()
     else:
@@ -298,7 +299,7 @@ def worker(cfg):
 
     # set loss
     loss = None
-    if cfg.loss.type in ["entropic", 'cosos-m', 'cosos-v', 'cosos-f', 'cosos-s', 'coseos', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere']:
+    if cfg.loss.type in ["entropic", 'cosos-m', 'cosos-v', 'cosos-f', 'cosos-s', 'smsoftmaxos-s', 'smsoftmaxos-v', 'coseos', 'arceos', 'smsoftmaxeos', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'arceos_sfn', 'coseos_sfn']:
         # number of classes - 1 since we have no label for unknown
         n_classes = train_ds.label_count - 1
     else:
@@ -319,23 +320,50 @@ def worker(cfg):
 
     # load hyperparameters for the respectiev loss function
     if not loss_type in ['softmax', 'entropic', 'garbage']:
-        hyperparams = yaml.safe_load(open('config/hyperparameters.yaml'))[loss_type]
+        hyperparams = yaml.safe_load(open(f'config/p{cfg.protocol}_hyperparameters.yaml'))[loss_type]
     else:
         hyperparams = {}
     
 
     # select loss function
-    if cfg.loss.type in ["entropic", 'coseos']:
+    if cfg.loss.type in ["entropic", 'coseos', 'arceos', 'smsoftmaxeos']:
         # we select entropic loss using class weights for the first
-        class_weights = device(train_ds.calculate_class_weights())
-        print(class_weights)
-        unk_weight = class_weights[0]
-        known_weights = class_weights[1:]
-        print(unk_weight)
-        print(known_weights)
-        loss = EntropicOpensetLoss(n_classes, unk_weight=unk_weight, known_weights=known_weights)
+        # class_weights = device(train_ds.calculate_class_weights())
+        # print(class_weights)
+        # unk_weight = class_weights[0]
+        # known_weights = class_weights[1:]
+        # print(unk_weight)
+        # print(known_weights)
+        # loss = EntropicOpensetLoss(n_classes, unk_weight=unk_weight, known_weights=known_weights)
+
         # We select entropic loss using the unknown class weights from the config file
-        # loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
+        loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
+    elif cfg.loss.type in ['arceos_sfn', 'coseos_sfn']:
+        lmbd = hyperparams['lambda_os']
+        xi = hyperparams['xi']
+        symmetric = hyperparams['symmetric']
+        ring = hyperparams['ring']
+        if ring:
+            feature_mag_loss = RingLoss(xi)
+        else:
+            feature_mag_loss = ObjectosphereLoss(xi, symmetric=symmetric)
+
+        # # uncomment to use class weights for loss
+        # class_weights = device(train_ds.calculate_class_weights())
+        # print(class_weights)
+        # unk_weight = class_weights[0]
+        # known_weights = class_weights[1:]
+        # print(unk_weight)
+        # print(known_weights)
+        # eos_loss = EntropicOpensetLoss(n_classes, unk_weight=unk_weight, known_weights=known_weights)
+
+        loss = JointLoss(
+            loss_1=EntropicOpensetLoss(n_classes, cfg.loss.w),
+            loss_2=feature_mag_loss,
+            lmbd=lmbd,
+            loss_1_requires_features=False,
+            loss_2_requires_features=True,
+        )
     elif cfg.loss.type == 'objectosphere':
         lmbd = hyperparams['lambda_os']
         xi = hyperparams['xi']
@@ -371,10 +399,22 @@ def worker(cfg):
             loss_1_requires_features=False,
             loss_2_requires_features=True,
         )
-    elif cfg.loss.type.startswith('cosos') or cfg.loss.type.startswith('arcos'):  # CosOS and ArcOS use the same loss and only differ in their logits
+    elif cfg.loss.type.startswith('cosos') or cfg.loss.type.startswith('arcos') or cfg.loss.type.startswith('smsoftmaxos'):  # CosOS and ArcOS use the same loss and only differ in their logits
         xi = hyperparams[variant]['xi']
         lmbd = hyperparams[variant]['lambda_os']
         symmetric = hyperparams[variant]['symmetric']
+
+        loss = JointLoss(
+            loss_1=torch.nn.CrossEntropyLoss(ignore_index=-1),
+            loss_2=ObjectosphereLoss(xi, symmetric=symmetric),
+            lmbd=lmbd,
+            loss_1_requires_features=False,
+            loss_2_requires_features=True,
+        )
+    elif cfg.loss.type in ['cosface_sfn', 'arcface_sfn']:
+        xi = hyperparams['xi']
+        lmbd = hyperparams['lambda_os']
+        symmetric = hyperparams['symmetric']
 
         loss = JointLoss(
             loss_1=torch.nn.CrossEntropyLoss(ignore_index=-1),
@@ -406,13 +446,15 @@ def worker(cfg):
     # Create the model
     if cfg.protocol == 0:  # toy protocol
         model = LeNetBottleneck(
+            cfg=cfg,
             loss_type=cfg.loss.type,
-            deep_feature_dim=2,
+            deep_feature_dim=cfg.deep_feature_dim_p0,
             out_features=n_classes,
             logit_bias=False
         )
     else:  # main protocols (1-3)
         model = ResNet50(
+            cfg=cfg,
             loss_type=cfg.loss.type,
             fc_layer_dim=n_classes,
             out_features=n_classes,
@@ -422,7 +464,7 @@ def worker(cfg):
 
     # Create optimizer
     if cfg.opt.type == "sgd":
-        opt = torch.optim.SGD(params=model.parameters(), lr=cfg.opt.lr, momentum=0.9)
+        opt = torch.optim.SGD(params=model.parameters(), lr=cfg.opt.lr, momentum=cfg.opt.momentum)
     else:
         opt = torch.optim.Adam(params=model.parameters(), lr=cfg.opt.lr)
 
@@ -455,20 +497,25 @@ def worker(cfg):
 
     # Info on console
     log_info = f"""
-    ============ Data ============
-    train_len:{len(train_ds)}, labels:{train_ds.label_count}
-    val_len:{len(val_ds)}, labels:{val_ds.label_count}
-    ========== Training ==========
-    Initial epoch: {START_EPOCH}
-    Last epoch: {nr_epochs}
-    Batch size: {cfg.batch_size}
-    Workers: {cfg.workers}
-    Loss: {cfg.loss.type}
-    Optimizer: {cfg.opt.type}
-    Learning rate: {cfg.opt.lr}
-    Device: {cfg.gpu}
-    Protocol: {cfg.protocol}
-    Training...
+============ Data ============
+train_len:{len(train_ds)}, labels:{train_ds.label_count}
+val_len:{len(val_ds)}, labels:{val_ds.label_count}
+========== Training ==========
+Initial epoch: {START_EPOCH}
+Last epoch: {nr_epochs}
+Batch size: {cfg.batch_size}
+Workers: {cfg.workers}
+Loss: {cfg.loss.type}
+Optimizer: {cfg.opt.type}
+Learning rate: {cfg.opt.lr}
+Device: {cfg.gpu}
+Protocol: {cfg.protocol}
+=========== Model ============
+Logit type: {model.logit_type}
+Deep feature dim: {model.logits.in_features}
+hyperparameters: {json.dumps(hyperparams, indent=4)}
+==============================
+Training...
     """
     logger.info(log_info)
     writer = SummaryWriter(log_dir=cfg.output_directory, filename_suffix="-"+cfg.log_name)

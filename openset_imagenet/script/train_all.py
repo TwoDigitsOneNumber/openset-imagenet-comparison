@@ -35,7 +35,7 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
       "--loss-functions", "-l",
       nargs = "+",
-      choices = ('entropic', 'softmax', 'garbage', 'sphereface', 'cosface', 'arcface', 'magface', 'cosos-f', 'cosos-m', 'cosos-v', 'cosos-s', 'coseos', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'cosface-garbage', 'arcface-garbage', 'smsoftmax'),
+      choices = ('entropic', 'softmax', 'garbage', 'sphereface', 'cosface', 'arcface', 'magface', 'cosface_sfn', 'arcface_sfn', 'cosos-f', 'cosos-m', 'cosos-v', 'cosos-s', 'smsoftmaxos-s', 'smsoftmaxos-v', 'coseos', 'arceos', 'smsoftmaxeos', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'cosface-garbage', 'arcface-garbage', 'smsoftmax', 'arceos_sfn', 'coseos_sfn'),
       default = ('entropic', 'softmax', 'garbage'),
       help = "Select the loss functions that should be evaluated"
       )

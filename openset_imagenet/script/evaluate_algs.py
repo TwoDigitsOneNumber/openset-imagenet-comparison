@@ -22,7 +22,7 @@ def command_line_options(command_line_arguments=None):
     # directory parameters
     parser.add_argument(
         "--losses", "-l",
-        choices = ["entropic", "softmax", "garbage", "sphereface", "cosface", "arcface", "magface", "cosos-f", "cosos-m", "cosos-v", 'cosos-s', "coseos", 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'cosface-garbage', 'arcface-garbage', 'smsoftmax'],
+        choices = ["entropic", "softmax", "garbage", "sphereface", "cosface", "arcface", "magface", 'cosface_sfn', 'arcface_sfn', "cosos-f", "cosos-m", "cosos-v", 'cosos-s', 'smsoftmaxos-s', 'smsoftmaxos-v', "coseos", 'arceos', 'smsoftmaxeos', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'cosface-garbage', 'arcface-garbage', 'smsoftmax', 'coseos_sfn', 'arceos_sfn'],
         nargs="+",
         default = ["entropic", "softmax", "garbage"],
         help="Which loss functions to evaluate"
@@ -79,7 +79,7 @@ def dataset(cfg, protocol):
     # Create transformations
     if protocol == 0:  # toy data
         transform = tf.Compose([
-            tf.Resize(28),
+            # tf.Resize(28),
             # tf.CenterCrop(28),
             tf.ToTensor()
         ])
@@ -115,11 +115,13 @@ def load_model(cfg, loss, algorithm, protocol, suffix, output_directory, n_class
         opt = cfg.optimized[algorithm]
         popt = opt[f"p{protocol}"][loss]
         base = openset_imagenet.ResNet50(
+            cfg=cfg,
             fc_layer_dim=n_classes,
             out_features=n_classes,
             logit_bias=False)
 
         model = openset_imagenet.model.ResNet50Proser(
+            cfg=cfg,
             dummy_count = popt.dummy_count,
             fc_layer_dim=n_classes,
             resnet_base = base,
@@ -129,12 +131,14 @@ def load_model(cfg, loss, algorithm, protocol, suffix, output_directory, n_class
     else:
         if protocol == 0:  # toy data
             model = LeNetBottleneck(
-                deep_feature_dim=2,
+                cfg=cfg,
+                deep_feature_dim=cfg.deep_feature_dim_p0,
                 out_features=n_classes,
                 logit_bias=False, 
                 loss_type=loss)
         else:  # main protocols
             model = ResNet50(
+                cfg=cfg,
                 fc_layer_dim=n_classes,
                 out_features=n_classes,
                 logit_bias=False,
