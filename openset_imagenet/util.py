@@ -175,40 +175,27 @@ COLORS = {
 }
 
 STYLES = {
-    "entropic": "dashed",
+    # benchmarks
     "softmax": "solid",
+    "entropic": "dashed",
+    "objectosphere": "dashdot",
     "garbage": "dotted",
-    "objectosphere": "solid",
-    "cosface-garbage": "dashed",
-    "arcface-garbage": "dashdot",
-    # margin/face losses (HFN)
+    # face losses (HFN)
     "sphereface": "dashed",
     "cosface": "dashdot",
     "arcface": "dotted",
-    "magface": "solid",
-    "smsoftmax": "dashed",
     # face losses (SFN)
-    'cosface_sfn': "dashdot",
-    'arcface_sfn': "dotted",
+    'cosface_sfn': "dotted",
+    'arcface_sfn': "dashdot",
+    # margin-OS (SFN)
+    'softmax_os': 'dashed',
+    'cos_os': 'dashdot',
+    'arc_os': 'dotted',
     # margin-eos (HFN)
-    "coseos": "solid",
-    "arceos": "dashdot",
-    "smsoftmaxeos": "dotted",
-    # margin-eos (SFN)
-    "arceos_sfn": "dashdot",
-    "coseos_sfn": "solid",
-    # margin-os
-    "softmaxos-s": "dotted",
-    "softmaxos-v": "dotted",
-    "cosos-v": "dotted",
-    "cosos-s": "dashdot",
-    "cosos-f": "dashed",
-    "cosos-m": "solid",
-    "arcos-v": "dotted",
-    "arcos-s": "dashed",
-    "arcos-f": "dashdot",
-    "smsoftmaxos-v": "dotted",
-    "smsoftmaxos-s": "dotted",
+    "norm_eos": "dashed",
+    "cos_eos": "dashdot",
+    "arc_eos": "dotted",
+    # protocols
     "p1": "dashed",
     "p2": "dotted",
     "p3": "solid",
@@ -216,40 +203,33 @@ STYLES = {
 }
 
 NAMES = {
+    # benchmarks
+    "softmax": "Softmax",
+    "entropic": "EOS",
+    "objectosphere": "Objectosphere",
+    "garbage": "Garbage",
+    # face losses (HFN)
+    "sphereface": "SphereFace",
+    "cosface": "CosFace",
+    "arcface": "ArcFace",
+    # face losses (SFN)
+    'cosface_sfn': "CosFace (SFN)",
+    'arcface_sfn': "ArcFace (SFN)",
+    # margin-OS (SFN)
+    'softmax_os': 'SoftmaxOS',
+    'cos_os': 'CosOS',
+    'arc_os': 'ArcOS',
+    # margin-eos (HFN)
+    "norm_eos": "NormEOS",
+    "cos_eos": "CosEOS",
+    "arc_eos": "ArcEOS",
+    # algorithms
     "threshold": "Threshold",
     "openmax": "OpenMax",
     "proser": "PROSER",
     "evm": "EVM",
     "maxlogits": "MaxLogits",
-    "entropic": "EOS",
-    "softmax": "Softmax",
-    "objectosphere": "Objectosphere",
-    "smsoftmax": "SM-Softmax",
-    "softmaxos-s": "SoftmaxOS-S",
-    "softmaxos-v": "SoftmaxOS-V",
-    "garbage": "Garbage",
-    "cosface-garbage": "CosFace-Garbage",
-    "arcface-garbage": "ArcFace-Garbage",
-    "sphereface": "SphereFace",
-    "cosface": "CosFace",
-    "arcface": "ArcFace",
-    "magface": "MagFace",
-    'cosface_sfn': "CosFace (SFN)",
-    'arcface_sfn': "ArcFace (SFN)",
-    "arceos_sfn": "ArcEOS (SFN)",
-    "coseos_sfn": "CosEOS (SFN)",
-    "cosos-v": "CosOS-V",
-    "cosos-s": "CosOS-S",
-    "cosos-f": "CosOS-F",
-    "cosos-m": "CosOS-M",
-    "arcos-v": "ArcOS-V",
-    "arcos-s": "ArcOS-S",
-    "arcos-f": "ArcOS-F",
-    "smsoftmaxos-v": "SM-SoftmaxOS-V",
-    "smsoftmaxos-s": "SM-SoftmaxOS-s",
-    "coseos": "CosEOS",
-    "arceos": "ArcEOS",
-    "smsoftmaxeos": "SM-SoftmaxEOS",
+    # other
     "p1": "P_1",
     "p2": "P_2",
     "p3": "P_3",

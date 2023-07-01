@@ -5,15 +5,17 @@ import math
 import yaml
 
 
-def set_logits(cfg, loss_type, in_features, out_features, logit_bias):
+def set_logits(protocol, loss_type, in_features, out_features, logit_bias):
     """return logits based on the specified loss type
     
     parameters:
+        protocol (int): protocol, used to grab correct hyperparameters from file
         loss_type (str): name of loss used, this determines which type of logits to use
         in_features (int): dimension of deep features, i.e., dimension of input for the logits 
         out_features (int): output dimension of the logits
         logit_bias (bool): currently only here for compatibility, has no effect
 
+        # TODO: update/correct to how it is now
         **kwargs: add other logit_variant specific parameters as keyword arguments. If not specified, the defaults of the logit class are used. Can be set to multiple arguments even if not all are available for all logits, e.g., when running 'cosface' and 'cosos' in parallel, can set 's' (which affects both since the parameter is called the same) and can also set 'variable_magnitude_during_testing' (which is only available for 'cosos' but does not break the call for 'cosface').
             -> if a parameter should be set differently for different logit_variants, then the parameter must be renamed in the respective logit class to a distinct name
     """
@@ -23,52 +25,33 @@ def set_logits(cfg, loss_type, in_features, out_features, logit_bias):
         'sphereface': SphereFace,
         'cosface': CosFace,
         'arcface': ArcFace,
-        'magface': MagFace,
         'cosine_margin': CosineMargin,
         'angular_margin': AngularMargin,
         'logit_margin': LogitMargin
     }
 
 
-    # pick appart type from its variant
-    variant = None
-    if '-' in loss_type:
-        loss_type, variant = loss_type.split('-')
 
-    # use linear logits for softmax and entropic loss
-    if loss_type in ['softmax', 'entropic', 'garbage', 'softmaxos', 'objectosphere']:
+    # use linear logits for softmax and entropic loss, linear logits have no hyperparams
+    if loss_type in ['softmax', 'entropic', 'garbage', 'objectosphere']:
         hyperparams = {}
         logit_type = 'linear'
     else:
         # load hyperparams
-        hyperparams = yaml.safe_load(open(f'config/p{cfg.protocol}_hyperparameters.yaml'))[loss_type]
-        if variant:
-            hyperparams = hyperparams[variant]
+        hyperparams = yaml.safe_load(open(f'config/p{protocol}_hyperparameters.yaml'))[loss_type]
 
         # choose correspongind logit type
-        if loss_type in ['cosface']:
-            logit_type = 'cosface'
-        elif loss_type in ['arcface']:
-            logit_type = 'arcface'
-        elif loss_type in ['sphereface']:
-            logit_type = 'sphereface'
-        elif loss_type in ['smsoftmax', 'smsoftmaxeos', 'smsoftmaxos']:
+        if loss_type in ['sphereface', 'cosface', 'arcface']:
+            logit_type = loss_type
+        elif loss_type in ['softmax_os', 'norm_eos']:
             logit_type = 'logit_margin'
-        elif loss_type in ['cosos', 'coseos', 'cosface_sfn', 'coseos_sfn']:
+        elif loss_type in ['cosface_sfn', 'cos_os', 'cos_eos']:
             logit_type = 'cosine_margin'
-        elif loss_type in ['arcos', 'arceos', 'arcface_sfn', 'arceos_sfn']:
+        elif loss_type in ['arcface_sfn', 'arc_os', 'arc_eos']:
             logit_type = 'angular_margin'
         else:
             raise ValueError('invalid loss type specified.')
         
-
-
-
-    # # load hyperparameters for the respectiev loss function
-    # if not loss_type == 'linear':
-    # else:
-    #     hyperparams = {}
-
     
     return logit_map[logit_type](
         in_features=in_features, 
@@ -119,7 +102,6 @@ class SphereFace(nn.Module):
         # cos_theta and d_theta
         cos_theta = F.normalize(features, dim=1).mm(self.w)
 
-        # their version
         with torch.no_grad():
             if labels is None:  # forward pass at test time
                 # mathematically equivalent to setting m=1 and k=0.
@@ -228,54 +210,6 @@ class ArcFace(nn.Module):
         # return logits
 
 
-class MagFace(nn.Module):
-    """
-    Inspired by https://github.com/IrvingMeng/MagFace but mostly adapted from ArcFace implementation.
-    MagFace Loss.
-
-        logit_bias argument in constructor soley for compatibility.
-    """
-    def __init__(self, in_features, out_features, logit_bias, s=64., l_a=10, u_a=110, l_m=.4, u_m=.8, **kwargs):
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.s = s
-        self.l_a = l_a
-        self.u_a = u_a
-        self.l_m = l_m
-        self.u_m = u_m
-        self.w = nn.Parameter(torch.Tensor(in_features, out_features))
-        nn.init.xavier_normal_(self.w)
-        print('Using MagFace logits')
-
-    def _margin(self, a):
-        """compute adaptive margin m(a_i) but for all vectors simultaneously. a is vector of norms of feature vectors. """
-        margin = (a-self.l_a) * (self.u_m-self.l_m) / (self.u_a-self.l_a) + self.l_m
-        return margin
-
-    def forward(self, features, labels):
-        with torch.no_grad():
-            self.w.data = F.normalize(self.w.data, dim=0)
-
-        cos_theta = F.normalize(features, dim=1).mm(self.w)
-
-        with torch.no_grad():
-            if labels is None:  # testing time forward pass
-                d_theta = torch.zeros_like(cos_theta)
-            else:  # training time forward pass
-
-                # compute norms of feature vectors
-                a = torch.linalg.norm(features, ord=2, dim=1)
-
-                theta_m = torch.acos(cos_theta.clamp(-1+1e-5, 1-1e-5))
-                theta_m.scatter_(1, labels.view(-1, 1), self._margin(a).view(-1,1), reduce='add')
-                theta_m.clamp_(1e-5, math.pi)
-                d_theta = torch.cos(theta_m) - cos_theta
-
-            # else just use cos_theta, i.e., pass no margin (m(a_i)=0 for all a_i). In practice this means just skipping the above if statement
-        logits = self.s * (cos_theta + d_theta)
-        return logits
-
 
 class CosineMargin(nn.Module):
     """
@@ -286,7 +220,7 @@ class CosineMargin(nn.Module):
         reference2: <Additive Margin Softmax for Face Verification>
 
     """
-    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.35, variable_magnitude_during_testing=True, **kwargs):
+    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.35, **kwargs):
         """
         parameters:
             s (int): Feature magnitude in the deep feature space. For s=64 equal to CosFace. Use s=None for no feature normalization.
@@ -298,7 +232,6 @@ class CosineMargin(nn.Module):
         self.out_features = out_features
         self.s = s
         self.m = m
-        self.variable_magnitude_during_testing = variable_magnitude_during_testing
         self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
         print('Using CosineMargin logits')
@@ -317,8 +250,7 @@ class CosineMargin(nn.Module):
                 kn_idx = labels >= 0
                 cos_theta[kn_idx,:] = cos_theta[kn_idx,:].scatter(1, labels[kn_idx].view(-1, 1), -self.m, reduce='add')
 
-        # variable feature magnitude if 
-        if (self.s is None) or (self.s is not None and labels is None and self.variable_magnitude_during_testing):
+        if self.s is None:  # variable feature magnitude if 
             a = torch.linalg.norm(features, ord=2, dim=1)
             logits = torch.mul(a.view(-1,1), cos_theta + d_theta)
         else:  # fixed feature magnitude
@@ -335,7 +267,7 @@ class AngularMargin(nn.Module):
 
         logit_bias argument in constructor soley for compatibility.
     """
-    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.5, variable_magnitude_during_testing=True, **kwargs):
+    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.5, **kwargs):
         """
         parameters:
             s (int): Feature magnitude in the deep feature space. For s=64 equal to ArcFace. Use s=None for no feature normalization.
@@ -347,7 +279,6 @@ class AngularMargin(nn.Module):
         self.out_features = out_features
         self.s = s
         self.m = m
-        self.variable_magnitude_during_testing = variable_magnitude_during_testing
         self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
         print('Using AngularMargin logits')
@@ -371,8 +302,7 @@ class AngularMargin(nn.Module):
 
             # else just use cos_theta, i.e., pass no margin (m=0). In practice this means just skipping the above if statement
 
-        # variable feature magnitude if 
-        if (self.s is None) or (self.s is not None and labels is None and self.variable_magnitude_during_testing):
+        if self.s is None:  # variable feature magnitude
             a = torch.linalg.norm(features, ord=2, dim=1)
             logits = torch.mul(a.view(-1,1), cos_theta + d_theta)
         else:  # fixed feature magnitude
@@ -388,12 +318,11 @@ class LogitMargin(nn.Module):
 
         set s=None and w_normalization=False for original SM-Softmax.
     """
-    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.3, w_normalization=False, variable_magnitude_during_testing=True, **kwargs):
+    def __init__(self, in_features, out_features, logit_bias, s=None, m=0.3, w_normalization=False, **kwargs):
         """
         parameters:
             s (int): Feature magnitude in the deep feature space. For Use s=None for no feature normalization.
             logit_bias argument in constructor soley for compatibility, has no effect.
-            variable_magnitude_during_testing (bool): lets feature magnitudes be variable during testing/validation, allows to keep feature magnitude fixed only during training. Only has an effect when s is not None.
         """
         super().__init__()
         self.in_features = in_features
@@ -401,7 +330,6 @@ class LogitMargin(nn.Module):
         self.s = s
         self.m = m
         self.w_normalization = w_normalization
-        self.variable_magnitude_during_testing = variable_magnitude_during_testing
         self.w = nn.Parameter(torch.Tensor(in_features, out_features))
         nn.init.xavier_normal_(self.w)
         print('Using LogitMargin logits')
@@ -412,11 +340,10 @@ class LogitMargin(nn.Module):
             if self.w_normalization:
                 self.w.data = F.normalize(self.w.data, dim=0)
 
-        # variable feature magnitude if 
-        if (self.s is None) or (self.s is not None and labels is None and self.variable_magnitude_during_testing):
+        if self.s is None:  # variable feature magnitude
             logits = features.mm(self.w)
         else:  # fixed feature magnitude
-            logits = F.normalize(features, dim=1).mm(self.w) * self.s  # \cos(\theta_{i,j})
+            logits = self.s * F.normalize(features, dim=1).mm(self.w)  # s * \cos(\theta_{i,j})
 
         with torch.no_grad():
             margin = torch.zeros_like(logits)

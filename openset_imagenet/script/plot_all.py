@@ -45,15 +45,21 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
         "--losses", "-l",
         nargs = "+",
-        choices = ('softmax', 'garbage', 'entropic', 'sphereface', 'cosface', 'arcface', 'magface', 'cosface_sfn', 'arcface_sfn', 'cosos-f', 'cosos-m', 'cosos-v', 'cosos-s', 'smsoftmaxos-s', 'smsoftmaxos-v', 'coseos', 'arceos', 'smsoftmaxeos', 'arcos-s', 'arcos-v', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'cosface-garbage', 'arcface-garbage', 'smsoftmax', 'coseos_sfn', 'arceos_sfn'),
-        default = ('softmax', 'entropic', 'cosface', 'cosos-v'),
+		choices = (
+			'softmax', 'entropic', 'garbage', 'objectosphere',  	# benchmarks
+			'sphereface', 'cosface', 'arcface',  					# face losses (HFN)
+			'cosface_sfn', 'arcface_sfn',  							# face losses (SFN)
+			'softmax_os', 'cos_os', 'arc_os',  						# margin-OS (SFN)
+			'norm_eos', 'cos_eos', 'arc_eos'  						# margin-EOS (HFN)
+		),
+        default = ('softmax', 'entropic'),
         help = "Select the loss functions that should be included into the plot"
     )
     parser.add_argument(
         "--algorithms", "-a",
         choices = ["threshold", "openmax", "evm", "proser", "maxlogits"],
         nargs = "+",
-        default = ["threshold", "openmax", "evm", "proser", "maxlogits"],
+        default = ["threshold"],
         help = "Which algorithm to include into the plot. Specific parameters should be in the yaml file"
     )
     parser.add_argument(

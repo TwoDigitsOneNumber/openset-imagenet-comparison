@@ -27,24 +27,29 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
         "--protocols", "-p",
         type=int,
-        choices = (1,2,3,0),
+        choices = (0,1,2,3),
         nargs="+",
-        default = (3,1,2),
-        help="Select the protocols that should be executed, 0 is the toy data (EMNIST + Devanagari)."
+        default = (1,2,3),
+        help="Select the protocols that should be executed, 0 is the toy data (EMNIST splits 'mnist' and 'digits')."
     )
     parser.add_argument(
-      "--loss-functions", "-l",
-      nargs = "+",
-      choices = ('entropic', 'softmax', 'garbage', 'sphereface', 'cosface', 'arcface', 'magface', 'cosface_sfn', 'arcface_sfn', 'cosos-f', 'cosos-m', 'cosos-v', 'cosos-s', 'smsoftmaxos-s', 'smsoftmaxos-v', 'coseos', 'arceos', 'smsoftmaxeos', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'cosface-garbage', 'arcface-garbage', 'smsoftmax', 'arceos_sfn', 'coseos_sfn'),
-      default = ('entropic', 'softmax', 'garbage'),
-      help = "Select the loss functions that should be evaluated"
-      )
-
+		"--loss-functions", "-l",
+		nargs = "+",
+		choices = (
+			'softmax', 'entropic', 'garbage', 'objectosphere',  	# benchmarks
+			'sphereface', 'cosface', 'arcface',  					# face losses (HFN)
+			'cosface_sfn', 'arcface_sfn',  							# face losses (SFN)
+			'softmax_os', 'cos_os', 'arc_os',  						# margin-OS (SFN)
+			'norm_eos', 'cos_eos', 'arc_eos'  						# margin-EOS (HFN)
+		),
+		default = ('entropic', 'softmax', 'garbage'),
+		help = "Select the loss functions that should be evaluated"
+	)
     parser.add_argument(
-      "--algorithms", "-a",
-      nargs = "+",
-      choices = ('threshold', 'evm', 'openmax', 'proser'),
-      default = ('threshold', 'evm', 'openmax', 'proser')
+		"--algorithms", "-a",
+		nargs = "+",
+		choices = ('threshold', 'evm', 'openmax', 'proser'),
+		default = ('threshold')
     )
     parser.add_argument(
         "--output-directory", "-o",

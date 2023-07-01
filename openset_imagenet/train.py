@@ -17,11 +17,36 @@ from loguru import logger
 from .metrics import confidence, auc_score_binary, auc_score_multiclass
 from .dataset import ImagenetDataset, OSCToyDataset
 from .model import ResNet50, LeNetBottleneck, load_checkpoint, save_checkpoint, set_seeds
-from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, MagFaceLoss, ObjectosphereLoss, JointLoss, objectoSphere_loss, RingLoss
+from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, ObjectosphereLoss, JointLoss, objectoSphere_loss, RingLoss
 import tqdm
 import yaml
 import json
 
+# losses that don't need to load the hyperparams file
+LOSSES_WITHOUT_HYPERPARAMETERS = ['softmax', 'entropic', 'garbage']
+
+# loss functions that require features as input (everything with the joint loss requires feature magnitude)
+LOSSES_THAT_NEED_FEATURE_MAGNITUDE = [  
+    'objectosphere',
+    'cosface_sfn', 'arcface_sfn',
+    'softmax_os', 'cos_os', 'arc_os'
+]
+
+# losses for which to remove the negatives from the data
+LOSSES_THAT_TRAIN_WITHOUT_NEGATIVES = [
+    "softmax", 
+    "sphereface", "cosface", "arcface", 
+    "cosface_sfn", "arcface_sfn"
+]
+
+# losses for which the number of classes C = Y - 1 (Y is label count)
+# (basically all losses trained with negatives (except garbage class approaches) belong here)
+# (garbage doesn't belong here as it relabels them (no longer considered negative (-1), but C+1))
+LOSSES_THAT_TRAIN_WITH_NEGATIVES_AND_WITHOUT_LABEL_FOR_UNKNOWN = [  
+    'entropic', 'objectosphere',
+    'softmax_os', 'cos_os', 'arc_os',
+    'norm_eos', 'cos_eos', 'arc_eos', 
+]
 
 def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
     """ Main training loop.
@@ -54,7 +79,7 @@ def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
         logits, features = model(images, labels)
 
         # Calculate loss
-        if cfg.loss.type in ['magface', 'cosos-f', 'cosos-v', 'cosos-m', 'cosos-s', 'smsoftmaxos-s', 'smsoftmaxos-v', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'cosface_sfn', 'arcface_sfn', 'arceos_sfn', 'coseos_sfn']:
+        if cfg.loss.type in LOSSES_THAT_NEED_FEATURE_MAGNITUDE:
             j = loss_fn(logits, labels, features)
         else:
             j = loss_fn(logits, labels)
@@ -79,7 +104,7 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
     for metric in trackers.values():
         metric.reset()
 
-    if cfg.loss.type in ["garbage", 'cosface-garbage', 'arcface-garbage']:
+    if cfg.loss.type in ["garbage"]:
         min_unk_score = 0.
         unknown_class = n_classes - 1
         last_valid_class = -1
@@ -102,7 +127,7 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
             scores = torch.nn.functional.softmax(logits, dim=1)
 
             # Calculate loss
-            if cfg.loss.type in ['magface', 'cosos-v', 'cosos-m', 'cosos-f', 'cosos-s', 'smsoftmaxos-s', 'smsoftmaxos-v', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'cosface_sfn', 'arcface_sfn', 'arceos_sfn', 'coseos_sfn']:
+            if cfg.loss.type in LOSSES_THAT_NEED_FEATURE_MAGNITUDE:
                 j = loss_fn(logits, labels, features)
             else:
                 j = loss_fn(logits, labels)
@@ -257,11 +282,11 @@ def worker(cfg):
             )
 
         # If using garbage class, replaces label -1 to maximum label + 1
-        if cfg.loss.type in ["garbage", 'cosface-garbage', 'arcface-garbage']:
+        if cfg.loss.type in ["garbage"]:
             # Only change the unknown label of the training dataset
             train_ds.replace_negative_label()
             val_ds.replace_negative_label()
-        elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface", "magface", 'smsoftmax', 'cosface_sfn', 'arcface_sfn']:
+        elif cfg.loss.type in LOSSES_THAT_TRAIN_WITHOUT_NEGATIVES:
             # remove the negative label from softmax training set, not from val set!
             train_ds.remove_negative_label()
     else:
@@ -299,7 +324,7 @@ def worker(cfg):
 
     # set loss
     loss = None
-    if cfg.loss.type in ["entropic", 'cosos-m', 'cosos-v', 'cosos-f', 'cosos-s', 'smsoftmaxos-s', 'smsoftmaxos-v', 'coseos', 'arceos', 'smsoftmaxeos', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'arceos_sfn', 'coseos_sfn']:
+    if cfg.loss.type in LOSSES_THAT_TRAIN_WITH_NEGATIVES_AND_WITHOUT_LABEL_FOR_UNKNOWN:
         # number of classes - 1 since we have no label for unknown
         n_classes = train_ds.label_count - 1
     else:
@@ -312,108 +337,51 @@ def worker(cfg):
     # ============== SELECT LOSS FUNCTION ==============
     # ==================================================
 
-    # pick appart type from its variant
-    variant = None
-    loss_type = cfg.loss.type
-    if '-' in loss_type:
-        loss_type, variant = loss_type.split('-')
 
-    # load hyperparameters for the respectiev loss function
-    if not loss_type in ['softmax', 'entropic', 'garbage']:
-        hyperparams = yaml.safe_load(open(f'config/p{cfg.protocol}_hyperparameters.yaml'))[loss_type]
+    # load hyperparameters for the respective loss function
+    if not cfg.loss.type in LOSSES_WITHOUT_HYPERPARAMETERS:
+        hyperparams = yaml.safe_load(open(f'config/p{cfg.protocol}_hyperparameters.yaml'))[cfg.loss.type]
     else:
         hyperparams = {}
     
-
     # select loss function
-    if cfg.loss.type in ["entropic", 'coseos', 'arceos', 'smsoftmaxeos']:
-        # we select entropic loss using class weights for the first
-        # class_weights = device(train_ds.calculate_class_weights())
-        # print(class_weights)
-        # unk_weight = class_weights[0]
-        # known_weights = class_weights[1:]
-        # print(unk_weight)
-        # print(known_weights)
-        # loss = EntropicOpensetLoss(n_classes, unk_weight=unk_weight, known_weights=known_weights)
-
-        # We select entropic loss using the unknown class weights from the config file
-        loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
-    elif cfg.loss.type in ['arceos_sfn', 'coseos_sfn']:
-        lmbd = hyperparams['lambda_os']
+    if cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface"]:
+        # We need to ignore the index only for validation loss computation
+        loss = torch.nn.CrossEntropyLoss(ignore_index=-1)
+    elif cfg.loss.type in ["garbage"]:
+        # We use balanced class weights
+        class_weights = device(train_ds.calculate_class_weights())
+        loss = torch.nn.CrossEntropyLoss(weight=class_weights)
+    elif cfg.loss.type == 'objectosphere':
+        lmbd = hyperparams['lambda']
         xi = hyperparams['xi']
         symmetric = hyperparams['symmetric']
-        ring = hyperparams['ring']
-        if ring:
-            feature_mag_loss = RingLoss(xi)
-        else:
-            feature_mag_loss = ObjectosphereLoss(xi, symmetric=symmetric)
-
-        # # uncomment to use class weights for loss
-        # class_weights = device(train_ds.calculate_class_weights())
-        # print(class_weights)
-        # unk_weight = class_weights[0]
-        # known_weights = class_weights[1:]
-        # print(unk_weight)
-        # print(known_weights)
-        # eos_loss = EntropicOpensetLoss(n_classes, unk_weight=unk_weight, known_weights=known_weights)
 
         loss = JointLoss(
             loss_1=EntropicOpensetLoss(n_classes, cfg.loss.w),
-            loss_2=feature_mag_loss,
-            lmbd=lmbd,
-            loss_1_requires_features=False,
-            loss_2_requires_features=True,
-        )
-    elif cfg.loss.type == 'objectosphere':
-        lmbd = hyperparams['lambda_os']
-        xi = hyperparams['xi']
-        symmetric = hyperparams['symmetric']
-        eos_loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
-
-        # # uncomment to use class weights for loss
-        # class_weights = device(train_ds.calculate_class_weights())
-        # print(class_weights)
-        # unk_weight = class_weights[0]
-        # known_weights = class_weights[1:]
-        # print(unk_weight)
-        # print(known_weights)
-        # eos_loss = EntropicOpensetLoss(n_classes, unk_weight=unk_weight, known_weights=known_weights)
-
-        loss = JointLoss(
-            loss_1=eos_loss,
             loss_2=ObjectosphereLoss(xi, symmetric=symmetric),
             # loss_2=objectoSphere_loss(xi),
             lmbd=lmbd,
             loss_1_requires_features=False,
             loss_2_requires_features=True,
         )
-    elif cfg.loss.type.startswith('softmaxos'):
-        lmbd = hyperparams[variant]['lambda_os']
-        xi = hyperparams[variant]['xi']
-        symmetric = hyperparams[variant]['symmetric']
-
-        loss = JointLoss(
-            loss_1=torch.nn.CrossEntropyLoss(ignore_index=-1),
-            loss_2=ObjectosphereLoss(xi, symmetric=symmetric),
-            lmbd=lmbd,
-            loss_1_requires_features=False,
-            loss_2_requires_features=True,
-        )
-    elif cfg.loss.type.startswith('cosos') or cfg.loss.type.startswith('arcos') or cfg.loss.type.startswith('smsoftmaxos'):  # CosOS and ArcOS use the same loss and only differ in their logits
-        xi = hyperparams[variant]['xi']
-        lmbd = hyperparams[variant]['lambda_os']
-        symmetric = hyperparams[variant]['symmetric']
-
-        loss = JointLoss(
-            loss_1=torch.nn.CrossEntropyLoss(ignore_index=-1),
-            loss_2=ObjectosphereLoss(xi, symmetric=symmetric),
-            lmbd=lmbd,
-            loss_1_requires_features=False,
-            loss_2_requires_features=True,
-        )
-    elif cfg.loss.type in ['cosface_sfn', 'arcface_sfn']:
+    elif cfg.loss.type in ['entropic', 'norm_eos', 'cos_eos', 'arc_eos']:
+        # We select entropic loss using the unknown class weights from the config file
+        loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
+    elif cfg.loss.type in ['arcface_sfn', 'cosface_sfn']:
+        lmbd = hyperparams['lambda']
         xi = hyperparams['xi']
-        lmbd = hyperparams['lambda_os']
+
+        loss = JointLoss(
+            loss_1=EntropicOpensetLoss(n_classes, cfg.loss.w),
+            loss_2=RingLoss(xi),
+            lmbd=lmbd,
+            loss_1_requires_features=False,
+            loss_2_requires_features=True,
+        )
+    elif cfg.loss.type in ['softmax_os', 'cos_os', 'arc_os']:
+        lmbd = hyperparams['lambda']
+        xi = hyperparams['xi']
         symmetric = hyperparams['symmetric']
 
         loss = JointLoss(
@@ -423,17 +391,6 @@ def worker(cfg):
             loss_1_requires_features=False,
             loss_2_requires_features=True,
         )
-    elif cfg.loss.type == "magface":
-        loss = MagFaceLoss(
-            lambda_g=hyperparams['lambda_g']
-        )
-    elif cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface", 'smsoftmax']:
-        # We need to ignore the index only for validation loss computation
-        loss = torch.nn.CrossEntropyLoss(ignore_index=-1)
-    elif cfg.loss.type in ["garbage", 'cosface-garbage', 'arcface-garbage']:
-        # We use balanced class weights
-        class_weights = device(train_ds.calculate_class_weights())
-        loss = torch.nn.CrossEntropyLoss(weight=class_weights)
 
 
 
@@ -446,7 +403,7 @@ def worker(cfg):
     # Create the model
     if cfg.protocol == 0:  # toy protocol
         model = LeNetBottleneck(
-            cfg=cfg,
+            protocol=cfg.protocol,
             loss_type=cfg.loss.type,
             deep_feature_dim=cfg.deep_feature_dim_p0,
             out_features=n_classes,
@@ -454,7 +411,7 @@ def worker(cfg):
         )
     else:  # main protocols (1-3)
         model = ResNet50(
-            cfg=cfg,
+            protocol=cfg.protocol,
             loss_type=cfg.loss.type,
             fc_layer_dim=n_classes,
             out_features=n_classes,

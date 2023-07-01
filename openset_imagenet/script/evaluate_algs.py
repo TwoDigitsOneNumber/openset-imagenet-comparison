@@ -22,7 +22,13 @@ def command_line_options(command_line_arguments=None):
     # directory parameters
     parser.add_argument(
         "--losses", "-l",
-        choices = ["entropic", "softmax", "garbage", "sphereface", "cosface", "arcface", "magface", 'cosface_sfn', 'arcface_sfn', "cosos-f", "cosos-m", "cosos-v", 'cosos-s', 'smsoftmaxos-s', 'smsoftmaxos-v', "coseos", 'arceos', 'smsoftmaxeos', 'arcos-v', 'arcos-s', 'arcos-f', 'softmaxos-s', 'softmaxos-v', 'objectosphere', 'cosface-garbage', 'arcface-garbage', 'smsoftmax', 'coseos_sfn', 'arceos_sfn'],
+		choices = (
+			'softmax', 'entropic', 'garbage', 'objectosphere',  	# benchmarks
+			'sphereface', 'cosface', 'arcface',  					# face losses (HFN)
+			'cosface_sfn', 'arcface_sfn',  							# face losses (SFN)
+			'softmax_os', 'cos_os', 'arc_os',  						# margin-OS (SFN)
+			'norm_eos', 'cos_eos', 'arc_eos'  						# margin-EOS (HFN)
+		),
         nargs="+",
         default = ["entropic", "softmax", "garbage"],
         help="Which loss functions to evaluate"
@@ -31,15 +37,15 @@ def command_line_options(command_line_arguments=None):
         "--protocols", "-p",
         type = int,
         nargs = "+",
-        choices = (1,2,3,0),
-        default = (2,1,3),
+        choices = (0,1,2,3),
+        default = (1,2,3),
         help = "Which protocols to evaluate. Set 0 for toy data."
     )
     parser.add_argument(
         "--algorithms", "-a",
         choices = ["threshold", "openmax", "proser", "evm"],
         nargs = "+",
-        default = ["threshold", "openmax", "proser", "evm"],
+        default = ["threshold"],
         help = "Which algorithm to evaluate. Specific parameters should be in the yaml file"
     )
 
@@ -131,14 +137,14 @@ def load_model(cfg, loss, algorithm, protocol, suffix, output_directory, n_class
     else:
         if protocol == 0:  # toy data
             model = LeNetBottleneck(
-                cfg=cfg,
+                protocol=protocol,
                 deep_feature_dim=cfg.deep_feature_dim_p0,
                 out_features=n_classes,
                 logit_bias=False, 
                 loss_type=loss)
         else:  # main protocols
             model = ResNet50(
-                cfg=cfg,
+                protocol=protocol,
                 fc_layer_dim=n_classes,
                 out_features=n_classes,
                 logit_bias=False,
