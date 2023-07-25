@@ -177,23 +177,24 @@ COLORS = {
 STYLES = {
     # benchmarks
     "softmax": "solid",
-    "entropic": "dashed",
-    "objectosphere": "dashdot",
+    "entropic": "solid",
+    "objectosphere": "dotted",
     "garbage": "dotted",
     # face losses (HFN)
     "sphereface": "dashed",
-    "cosface": "dashdot",
+    "cosface": "dashed",
     "arcface": "dotted",
     # face losses (SFN)
-    'cosface_sfn': "dotted",
-    'arcface_sfn': "dashdot",
+    'norm_sfn': "dashdot",
+    'cosface_sfn': "dashed",
+    'arcface_sfn': "dotted",
     # margin-OS (SFN)
-    'softmax_os': 'dashed',
-    'cos_os': 'dashdot',
+    'softmax_os': 'dashdot',
+    'cos_os': 'dashed',
     'arc_os': 'dotted',
     # margin-eos (HFN)
-    "norm_eos": "dashed",
-    "cos_eos": "dashdot",
+    "norm_eos": "dashdot",
+    "cos_eos": "dashed",
     "arc_eos": "dotted",
     # protocols
     "p1": "dashed",
@@ -213,6 +214,7 @@ NAMES = {
     "cosface": "CosFace",
     "arcface": "ArcFace",
     # face losses (SFN)
+    'norm_sfn': "Norm (SFN)",
     'cosface_sfn': "CosFace (SFN)",
     'arcface_sfn': "ArcFace (SFN)",
     # margin-OS (SFN)

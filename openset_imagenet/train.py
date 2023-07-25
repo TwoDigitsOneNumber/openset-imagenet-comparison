@@ -28,7 +28,7 @@ LOSSES_WITHOUT_HYPERPARAMETERS = ['softmax', 'entropic', 'garbage']
 # loss functions that require features as input (everything with the joint loss requires feature magnitude)
 LOSSES_THAT_NEED_FEATURE_MAGNITUDE = [  
     'objectosphere',
-    'cosface_sfn', 'arcface_sfn',
+    'norm_sfn', 'cosface_sfn', 'arcface_sfn',
     'softmax_os', 'cos_os', 'arc_os'
 ]
 
@@ -36,7 +36,7 @@ LOSSES_THAT_NEED_FEATURE_MAGNITUDE = [
 LOSSES_THAT_TRAIN_WITHOUT_NEGATIVES = [
     "softmax", 
     "sphereface", "cosface", "arcface", 
-    "cosface_sfn", "arcface_sfn"
+    "norm_sfn", "cosface_sfn", "arcface_sfn"
 ]
 
 # losses for which the number of classes C = Y - 1 (Y is label count)
@@ -368,12 +368,12 @@ def worker(cfg):
     elif cfg.loss.type in ['entropic', 'norm_eos', 'cos_eos', 'arc_eos']:
         # We select entropic loss using the unknown class weights from the config file
         loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
-    elif cfg.loss.type in ['arcface_sfn', 'cosface_sfn']:
+    elif cfg.loss.type in ['norm_sfn', 'arcface_sfn', 'cosface_sfn']:
         lmbd = hyperparams['lambda']
         xi = hyperparams['xi']
 
         loss = JointLoss(
-            loss_1=EntropicOpensetLoss(n_classes, cfg.loss.w),
+            loss_1=torch.nn.CrossEntropyLoss(ignore_index=-1),
             loss_2=RingLoss(xi),
             lmbd=lmbd,
             loss_1_requires_features=False,

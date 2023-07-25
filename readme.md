@@ -1,3 +1,6 @@
+# Notes on the fork
+implementation for Norm-OS is called softmax_os in the code.
+
 # Open set on ImageNet
 Implementation of the experiments performed in Large-Scale Open-Set Classification Protocols for ImageNet, which has been accepted for publication in WACV 2023.
 You can find a [pre-print of the paper including our supplemental material on arXiv](https://arxiv.org/abs/2210.06789).

@@ -20,6 +20,12 @@ arcface:
 
 
 # ===== face losses (SFN) ===== (use ring loss)
+norm_sfn:
+  s: null  # null gets convertet to None
+  m: 0  # 0
+  lambda: 0.01
+  xi: 15
+
 cosface_sfn:
   s: null  # null gets convertet to None
   m: 0.35  # 0.35

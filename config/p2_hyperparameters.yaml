@@ -6,20 +6,26 @@ objectosphere:
 
 
 # # ===== face losses (HFN) =====
-# sphereface:
-#   s: 16  # paper default: 30
-#   m: 1.2  # paper default: 1.2, code default: 1.5
+sphereface:
+  s: 16  # paper default: 30
+  m: 1.2  # paper default: 1.2, code default: 1.5
 
-# cosface:
-#   s: 16  # paper default: 64
-#   m: 0.35  # paper default: 0.35; see paper suplement for upper bound
+cosface:
+  s: 16  # paper default: 64
+  m: 0.35  # paper default: 0.35; see paper suplement for upper bound
 
-# arcface:
-#   s: 16  # paper default: 64
-#   m: 0.5  # paper default: 0.5, 0.2 worked well on p0 with 2-dim deep features
+arcface:
+  s: 16  # paper default: 64
+  m: 0.5  # paper default: 0.5, 0.2 worked well on p0 with 2-dim deep features
 
 
 # ===== face losses (SFN) ===== (use ring loss)
+norm_sfn:
+  s: null  # null gets convertet to None
+  m: 0  # 0
+  lambda: 0.01
+  xi: 16
+
 cosface_sfn:
   s: null  # null gets convertet to None
   m: 0.35  # 0.35
@@ -34,7 +40,7 @@ arcface_sfn:
 
   
 # ===== margin-OS (SFN) =====
-softmax_os:
+softmax_os:  # called Norm-OS in thesis
   s: null  # null gets convertet to None
   m: 0  # 0
   w_normalization: True  # set False for no normalization

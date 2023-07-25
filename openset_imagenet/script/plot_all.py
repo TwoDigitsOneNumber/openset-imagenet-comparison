@@ -48,7 +48,7 @@ def command_line_options(command_line_arguments=None):
 		choices = (
 			'softmax', 'entropic', 'garbage', 'objectosphere',  	# benchmarks
 			'sphereface', 'cosface', 'arcface',  					# face losses (HFN)
-			'cosface_sfn', 'arcface_sfn',  							# face losses (SFN)
+			'norm_sfn', 'cosface_sfn', 'arcface_sfn',  				# face losses (SFN)
 			'softmax_os', 'cos_os', 'arc_os',  						# margin-OS (SFN)
 			'norm_eos', 'cos_eos', 'arc_eos'  						# margin-EOS (HFN)
 		),

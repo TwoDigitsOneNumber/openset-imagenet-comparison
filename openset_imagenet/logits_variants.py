@@ -43,7 +43,7 @@ def set_logits(protocol, loss_type, in_features, out_features, logit_bias):
         # choose correspongind logit type
         if loss_type in ['sphereface', 'cosface', 'arcface']:
             logit_type = loss_type
-        elif loss_type in ['softmax_os', 'norm_eos']:
+        elif loss_type in ['norm_sfn', 'softmax_os', 'norm_eos']:
             logit_type = 'logit_margin'
         elif loss_type in ['cosface_sfn', 'cos_os', 'cos_eos']:
             logit_type = 'cosine_margin'

@@ -20,6 +20,12 @@ objectosphere:
 
 
 # ===== face losses (SFN) ===== (use ring loss)
+norm_sfn:
+  s: null  # null gets convertet to None
+  m: 0  # 0
+  lambda: 0.01
+  xi: 18
+
 cosface_sfn:
   s: null  # null gets convertet to None
   m: 0.35  # 0.35
@@ -34,13 +40,13 @@ arcface_sfn:
 
   
 # ===== margin-OS (SFN) =====
-# softmax_os:
-#   s: null  # null gets convertet to None
-#   m: 0  # 0
-#   w_normalization: True  # set False for no normalization
-#   lambda: 0.01
-#   xi: 18
-#   symmetric: True  # symmetric penalty on deviation xi-||F(x)|| of knowns
+softmax_os:
+  s: null  # null gets convertet to None
+  m: 0  # 0
+  w_normalization: True  # set False for no normalization
+  lambda: 0.01
+  xi: 18
+  symmetric: True  # symmetric penalty on deviation xi-||F(x)|| of knowns
 
 cos_os:
   s: null  # null gets convertet to None
@@ -58,10 +64,10 @@ arc_os:
 
 
 # ===== margin-EOS (HFN) =====
-# norm_eos:
-#   s: 18  # null gets convertet to None
-#   m: 0  # 0
-#   w_normalization: True  # set False for no normalization
+norm_eos:
+  s: 18  # null gets convertet to None
+  m: 0  # 0
+  w_normalization: True  # set False for no normalization
 
 cos_eos:
   s: 18  # null gets convertet to None
