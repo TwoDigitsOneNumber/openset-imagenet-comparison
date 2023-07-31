@@ -181,7 +181,7 @@ STYLES = {
     "objectosphere": "dotted",
     "garbage": "dotted",
     # face losses (HFN)
-    "sphereface": "dashed",
+    "sphereface": "dashdot",
     "cosface": "dashed",
     "arcface": "dotted",
     # face losses (SFN)
@@ -218,13 +218,13 @@ NAMES = {
     'cosface_sfn': "CosFace (SFN)",
     'arcface_sfn': "ArcFace (SFN)",
     # margin-OS (SFN)
-    'softmax_os': 'SoftmaxOS',
-    'cos_os': 'CosOS',
-    'arc_os': 'ArcOS',
+    'softmax_os': 'Norm-OS',
+    'cos_os': 'Cos-OS',
+    'arc_os': 'Arc-OS',
     # margin-eos (HFN)
-    "norm_eos": "NormEOS",
-    "cos_eos": "CosEOS",
-    "arc_eos": "ArcEOS",
+    "norm_eos": "Norm-EOS",
+    "cos_eos": "Cos-EOS",
+    "arc_eos": "Arc-EOS",
     # algorithms
     "threshold": "Threshold",
     "openmax": "OpenMax",
@@ -298,7 +298,7 @@ def plot_single_oscr(fpr, ccr, ax, loss, algorithm, scale, max_ccr, lower_bound_
     return ax
 
 
-def plot_oscr(args, arrays, gt, scale='linear', title=None, ax_label_font=13, ax=None, unk_label=-1, lower_bound_CCR=None, lower_bound_FPR=None):
+def plot_oscr(algorithms, losses, arrays, gt, scale='linear', title=None, ax_label_font=13, ax=None, unk_label=-1, lower_bound_CCR=None, lower_bound_FPR=None):
     """Plots OSCR curves for all given scores.
     The scores are stored as arrays: Float array of dim [N_samples, N_classes].
     The arrays contain scores for various loss functions and algorithms as arrays[loss][algorithm].
@@ -306,8 +306,10 @@ def plot_oscr(args, arrays, gt, scale='linear', title=None, ax_label_font=13, ax
 
     max_ccr = 0
 
-    for loss, loss_arrays in arrays.items():
-        for algorithm in args.algorithms:
+    # for loss, loss_arrays in arrays.items():
+    for loss in losses:
+        loss_arrays = arrays[loss]
+        for algorithm in algorithms:
         # for algorithm, scores in loss_arrays.items():
             scores = loss_arrays[algorithm]
             ccr, fpr = calculate_oscr(gt, scores, unk_label)

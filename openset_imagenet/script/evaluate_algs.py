@@ -27,7 +27,8 @@ def command_line_options(command_line_arguments=None):
 			'sphereface', 'cosface', 'arcface',  					# face losses (HFN)
 			'norm_sfn', 'cosface_sfn', 'arcface_sfn',  				# face losses (SFN)
 			'softmax_os', 'cos_os', 'arc_os',  						# margin-OS (SFN)
-			'norm_eos', 'cos_eos', 'arc_eos'  						# margin-EOS (HFN)
+			'norm_eos', 'cos_eos', 'arc_eos',  						# margin-EOS (HFN)
+            'cos_os_non_symmetric', 'arc_os_non_symmetric', 'sm_softmax'
 		),
         nargs="+",
         default = ["entropic", "softmax", "garbage"],
@@ -37,9 +38,9 @@ def command_line_options(command_line_arguments=None):
         "--protocols", "-p",
         type = int,
         nargs = "+",
-        choices = (0,1,2,3),
+        choices = (0,1,2,3,10),
         default = (1,2,3),
-        help = "Which protocols to evaluate. Set 0 for toy data."
+        help = "Which protocols to evaluate. Set 0 for toy data (K=C), 10 for K=2."
     )
     parser.add_argument(
         "--algorithms", "-a",
@@ -83,10 +84,8 @@ def command_line_options(command_line_arguments=None):
 def dataset(cfg, protocol):
 
     # Create transformations
-    if protocol == 0:  # toy data
+    if protocol == 0 or protocol == 10:  # toy data
         transform = tf.Compose([
-            # tf.Resize(28),
-            # tf.CenterCrop(28),
             tf.ToTensor()
         ])
 
@@ -135,10 +134,10 @@ def load_model(cfg, loss, algorithm, protocol, suffix, output_directory, n_class
 
         model_path = opt.output_model_path.format(output_directory, loss, algorithm, popt.epochs, popt.dummy_count, suffix)
     else:
-        if protocol == 0:  # toy data
+        if protocol == 0 or protocol == 10:  # toy data
             model = LeNetBottleneck(
                 protocol=protocol,
-                deep_feature_dim=cfg.deep_feature_dim_p0,
+                deep_feature_dim=2 if protocol == 10 else n_classes,
                 out_features=n_classes,
                 logit_bias=False, 
                 loss_type=loss)

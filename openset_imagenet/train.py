@@ -29,14 +29,16 @@ LOSSES_WITHOUT_HYPERPARAMETERS = ['softmax', 'entropic', 'garbage']
 LOSSES_THAT_NEED_FEATURE_MAGNITUDE = [  
     'objectosphere',
     'norm_sfn', 'cosface_sfn', 'arcface_sfn',
-    'softmax_os', 'cos_os', 'arc_os'
+    'softmax_os', 'cos_os', 'arc_os',
+    'cos_os_non_symmetric', 'arc_os_non_symmetric'
 ]
 
 # losses for which to remove the negatives from the data
 LOSSES_THAT_TRAIN_WITHOUT_NEGATIVES = [
     "softmax", 
     "sphereface", "cosface", "arcface", 
-    "norm_sfn", "cosface_sfn", "arcface_sfn"
+    "norm_sfn", "cosface_sfn", "arcface_sfn",
+    "sm_softmax"
 ]
 
 # losses for which the number of classes C = Y - 1 (Y is label count)
@@ -46,6 +48,7 @@ LOSSES_THAT_TRAIN_WITH_NEGATIVES_AND_WITHOUT_LABEL_FOR_UNKNOWN = [
     'entropic', 'objectosphere',
     'softmax_os', 'cos_os', 'arc_os',
     'norm_eos', 'cos_eos', 'arc_eos', 
+    'cos_os_non_symmetric', 'arc_os_non_symmetric'
 ]
 
 def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
@@ -231,7 +234,7 @@ def worker(cfg):
         mode='w')
 
     # Set image transformations
-    if cfg.protocol == 0:  # toy protocol
+    if cfg.protocol == 0 or cfg.protocol == 10:  # toy protocol
         train_tr = transforms.Compose([
             transforms.Resize(28),
             transforms.ToTensor()
@@ -258,7 +261,7 @@ def worker(cfg):
     val_file = pathlib.Path(cfg.data.val_file.format(cfg.protocol))
 
     if train_file.exists() and val_file.exists():
-        if cfg.protocol == 0:  # toy protocol
+        if cfg.protocol == 0 or cfg.protocol == 10:  # toy protocol
             train_ds = OSCToyDataset(
                 csv_file=train_file,
                 imagenet_path=cfg.data.osc_toy_path,
@@ -345,7 +348,7 @@ def worker(cfg):
         hyperparams = {}
     
     # select loss function
-    if cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface"]:
+    if cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface", "sm_softmax"]:
         # We need to ignore the index only for validation loss computation
         loss = torch.nn.CrossEntropyLoss(ignore_index=-1)
     elif cfg.loss.type in ["garbage"]:
@@ -379,7 +382,7 @@ def worker(cfg):
             loss_1_requires_features=False,
             loss_2_requires_features=True,
         )
-    elif cfg.loss.type in ['softmax_os', 'cos_os', 'arc_os']:
+    elif cfg.loss.type in ['softmax_os', 'cos_os', 'arc_os', 'cos_os_non_symmetric', 'arc_os_non_symmetric']:
         lmbd = hyperparams['lambda']
         xi = hyperparams['xi']
         symmetric = hyperparams['symmetric']
@@ -401,11 +404,11 @@ def worker(cfg):
 
 
     # Create the model
-    if cfg.protocol == 0:  # toy protocol
+    if cfg.protocol == 0 or cfg.protocol == 10:  # toy protocol
         model = LeNetBottleneck(
             protocol=cfg.protocol,
             loss_type=cfg.loss.type,
-            deep_feature_dim=cfg.deep_feature_dim_p0,
+            deep_feature_dim= 2 if cfg.protocol == 10 else n_classes,
             out_features=n_classes,
             logit_bias=False
         )
@@ -435,7 +438,7 @@ def worker(cfg):
     else:
         scheduler = None
 
-    nr_epochs = cfg.epochs_p0 if cfg.protocol == 0 else cfg.epochs
+    nr_epochs = cfg.epochs_p0 if cfg.protocol == 0 or cfg.protocol == 10 else cfg.epochs
 
 
         # Resume a training from a checkpoint

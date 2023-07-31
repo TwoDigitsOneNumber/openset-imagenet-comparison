@@ -2,10 +2,14 @@
 \centering
 \begin{tabularx}{.7\textwidth}{c|c|cccc}
 \bf Algorithm & \bf Loss & $10^{-3}$ & $10^{-2}$ & $10^{-1}$ & $1$\\\hline\hline
-\multirow{4}{*}{Threshold} & EOS & & \underline{0.1073} & \underline{0.4013} & \underline{0.6253}\\
- & NormEOS & \textcolor{blue}{\bf 0.0353} & \textcolor{blue}{\bf 0.1647} & \underline{0.4073} & \underline{0.6573}\\
- & CosEOS & \underline{0.0127} & \underline{0.1553} & \textcolor{blue}{\bf 0.4793} & \textcolor{blue}{\bf 0.6740}\\
- & ArcEOS & \underline{0.0027} & \underline{0.1080} & \underline{0.4627} & \underline{0.6733}\\
+\multirow{8}{*}{Threshold} & Softmax & \underline{0.0280} & \underline{0.1160} & \underline{0.3673} & \underline{0.6260}\\
+ & EOS & & \underline{0.1073} & \underline{0.4013} & \underline{0.6253}\\
+ & Norm-OS & \textcolor{blue}{\bf 0.0660} & \underline{0.1853} & \underline{0.4420} & \textcolor{blue}{\bf 0.6800}\\
+ & Cos-OS & \underline{0.0573} & \textcolor{blue}{\bf 0.2080} & \underline{0.4473} & \underline{0.6647}\\
+ & Arc-OS & & \underline{0.1173} & \underline{0.4133} & \underline{0.6273}\\
+ & Norm-EOS & \underline{0.0353} & \underline{0.1647} & \underline{0.4073} & \underline{0.6573}\\
+ & Cos-EOS & \underline{0.0127} & \underline{0.1553} & \textcolor{blue}{\bf 0.4793} & \underline{0.6740}\\
+ & Arc-EOS & \underline{0.0027} & \underline{0.1080} & \underline{0.4627} & \underline{0.6733}\\
 \hline
 \end{tabularx}
 \end{table}

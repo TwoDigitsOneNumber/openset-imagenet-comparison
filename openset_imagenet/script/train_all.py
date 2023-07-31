@@ -27,10 +27,10 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
         "--protocols", "-p",
         type=int,
-        choices = (0,1,2,3),
+        choices = (0,1,2,3,10),
         nargs="+",
         default = (1,2,3),
-        help="Select the protocols that should be executed, 0 is the toy data (EMNIST splits 'mnist' and 'digits')."
+        help="Select the protocols that should be executed, 0 is the toy data with deep feature dim K=C, 10 is for toy data with K=2 (EMNIST splits 'mnist' and 'digits')."
     )
     parser.add_argument(
 		"--loss-functions", "-l",
@@ -40,7 +40,8 @@ def command_line_options(command_line_arguments=None):
 			'sphereface', 'cosface', 'arcface',  					# face losses (HFN)
 			'norm_sfn', 'cosface_sfn', 'arcface_sfn',  		# face losses (SFN)
 			'softmax_os', 'cos_os', 'arc_os',  						# margin-OS (SFN)
-			'norm_eos', 'cos_eos', 'arc_eos'  						# margin-EOS (HFN)
+			'norm_eos', 'cos_eos', 'arc_eos',  						# margin-EOS (HFN)
+      'cos_os_non_symmetric', 'arc_os_non_symmetric', 'sm_softmax'
 		),
 		default = ('entropic', 'softmax', 'garbage'),
 		help = "Select the loss functions that should be evaluated"

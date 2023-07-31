@@ -16,7 +16,6 @@ data:
 # Common parameters
 batch_size: 64  # If distributed training the batch size is multiplied by the number of gpus
 workers: 32      # Dataloader number of workers
-deep_feature_dim_p0: 10
 
 optimized: # the parameter settings that provide optimal values on the val set
   evm:

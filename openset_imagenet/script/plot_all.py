@@ -525,6 +525,7 @@ def plot_CCR_FPR(args, scores, ground_truths, pdf):
 def plot_OSCR(args, scores, ground_truths, lower_bound_CCR=None, lower_bound_FPR=None):
     # plot OSCR
     P = len(args.protocols)
+    losses = args.losses
     fig = pyplot.figure(figsize=(8,3*P))
     gs = fig.add_gridspec(P, 2, hspace=0.25, wspace=0.1)
     axs = gs.subplots(sharex=True, sharey=True)
@@ -533,14 +534,16 @@ def plot_OSCR(args, scores, ground_truths, lower_bound_CCR=None, lower_bound_FPR
 
     for index, protocol in enumerate(args.protocols):
         openset_imagenet.util.plot_oscr(
-            args=args,
+            algorithms=args.algorithms,
+            losses=losses,
             arrays=scores[protocol], gt=ground_truths[protocol], 
             scale="semilog", title=f'$P_{protocol}$ Negative',
             ax_label_font=font, ax=axs[2*index], unk_label=-1,
             lower_bound_CCR=lower_bound_CCR, lower_bound_FPR=lower_bound_FPR
 )
         openset_imagenet.util.plot_oscr(
-            args=args,
+            algorithms=args.algorithms,
+            losses=losses,
             arrays=scores[protocol], gt=ground_truths[protocol], 
             scale="semilog", title=f'$P_{protocol}$ Unknown',
             ax_label_font=font, ax=axs[2*index+1], unk_label=-2,
