@@ -1,21 +1,21 @@
 \begin{tabularx}{.7\textwidth}{|c|c||ccc|c|}
-\hline
+\cline{1-6}
 \multirow{2}{*}{\bf Group} & \multirow{2}{*}{\bf Loss} & \multicolumn{3}{c|}{\bf CCR@FPR} & \bf {Acc} \\ \cline{3-6}
-& &$10^{-3}$ & $10^{-2}$ & $10^{-1}$ & $1$\\\hline\hline
+& &$10^{-3}$ & $10^{-2}$ & $10^{-1}$ & $1$\\\cline{1-6}\cline{1-6}
 \multirow{3}{*}{Benchmarks} & Softmax & & 0.2238 & 0.5163 & 0.7574\\
  & EOS & & 0.2517 & \underline {0.5428} & \underline {0.7630}\\
  & Objectosphere & & \underline {0.2562} & 0.5294 & 0.7482\\
-\hline
-\multirow{3}{*}{SFN Margin} & CosFace (SFN) & & 0.0805 & 0.5501 & 0.7894\\
- & ArcFace (SFN) & & 0.0623 & \underline {0.5536} & \underline {0.7901}\\
- & Norm (SFN) & \textcolor{blue}{\bf 0.0809} & \underline {0.2351} & 0.5275 & 0.7597\\
-\hline
-\multirow{3}{*}{Margin-OS} & Cos-OS & & 0.0877 & \textcolor{blue}{\bf 0.6044} & \textcolor{blue}{\bf 0.7952}\\
+\cline{1-6}
+\multirow{3}{*}{SFN Margin} & SFN-Norm & \textcolor{blue}{\bf 0.0809} & \underline {0.2351} & 0.5275 & 0.7597\\
+ & SFN-CosFace & & 0.0805 & 0.5501 & 0.7894\\
+ & SFN-ArcFace & & 0.0623 & \underline {0.5536} & \underline {0.7901}\\
+\cline{1-6}
+\multirow{3}{*}{Margin-OS} & Norm-OS & \underline {0.0411} & \underline {0.2185} & 0.5832 & 0.7768\\
+ & Cos-OS & & 0.0877 & \textcolor{blue}{\bf 0.6044} & \textcolor{blue}{\bf 0.7952}\\
  & Arc-OS & & 0.1159 & 0.5874 & 0.7858\\
- & Norm-OS & \underline {0.0411} & \underline {0.2185} & 0.5832 & 0.7768\\
-\hline
-\multirow{3}{*}{Margin-EOS} & Cos-EOS & 0.0097 & 0.1417 & 0.5909 & 0.7713\\
+\cline{1-6}
+\multirow{3}{*}{Margin-EOS} & Norm-EOS & \underline {0.0531} & \textcolor{blue}{\bf 0.2596} & 0.5576 & 0.7674\\
+ & Cos-EOS & 0.0097 & 0.1417 & 0.5909 & 0.7713\\
  & Arc-EOS & 0.0033 & 0.0838 & \underline {0.5932} & \underline {0.7764}\\
- & Norm-EOS & \underline {0.0531} & \textcolor{blue}{\bf 0.2596} & 0.5576 & 0.7674\\
-\hline
+\cline{1-6}
 \end{tabularx}

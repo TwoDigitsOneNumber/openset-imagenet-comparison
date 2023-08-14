@@ -45,9 +45,9 @@ def set_logits(protocol, loss_type, in_features, out_features, logit_bias):
             logit_type = loss_type
         elif loss_type in ['norm_sfn', 'softmax_os', 'norm_eos', 'sm_softmax']:
             logit_type = 'logit_margin'
-        elif loss_type in ['cosface_sfn', 'cos_os', 'cos_eos', 'cos_os_non_symmetric']:
+        elif loss_type in ['cosface_sfn', 'cos_os', 'cos_eos', 'cos_eos_sfn', 'cos_os_non_symmetric']:
             logit_type = 'cosine_margin'
-        elif loss_type in ['arcface_sfn', 'arc_os', 'arc_eos', 'arc_os_non_symmetric']:
+        elif loss_type in ['arcface_sfn', 'arc_os', 'arc_eos', 'arc_eos_sfn', 'arc_os_non_symmetric']:
             logit_type = 'angular_margin'
         else:
             raise ValueError('invalid loss type specified.')

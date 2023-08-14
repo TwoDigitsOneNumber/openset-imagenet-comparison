@@ -1,22 +1,28 @@
 \begin{tabularx}{.7\textwidth}{|c|c||ccc|c|}
-\hline
+\cline{1-6}
 \multirow{2}{*}{\bf Group} & \multirow{2}{*}{\bf Loss} & \multicolumn{3}{c|}{\bf CCR@FPR} & \bf {Acc} \\ \cline{3-6}
-& &$10^{-3}$ & $10^{-2}$ & $10^{-1}$ & $1$\\\hline\hline
-\multirow{4}{*}{Margin} & SphereFace & 0.0302 & 0.1644 & 0.8607 & 0.9927\\
+& &$10^{-3}$ & $10^{-2}$ & $10^{-1}$ & $1$\\\cline{1-6}\cline{1-6}
+\multirow{4}{*}{Margin Types} & SM-Softmax & & \underline {0.2789} & 0.8310 & 0.9921\\
+ & SphereFace & 0.0302 & 0.1644 & 0.8607 & 0.9927\\
  & CosFace & \underline {0.0361} & \underline {0.2789} & \underline {0.8900} & 0.9934\\
  & ArcFace & 0.0107 & 0.1745 & 0.8801 & \underline {0.9942}\\
- & SM-Softmax & & \underline {0.2789} & 0.8310 & 0.9921\\
-\hline
-\multirow{2}{*}{SFN vs. HFN (cosine)} & CosFace & \underline {0.0361} & 0.2789 & 0.8900 & 0.9934\\
- & CosFace (SFN) & 0.0322 & \underline {0.4377} & \underline {0.9030} & \textcolor{blue}{\bf 0.9947}\\
-\hline
-\multirow{2}{*}{SFN vs. HFN (angular)} & ArcFace & 0.0107 & 0.1745 & 0.8801 & \underline {0.9942}\\
- & ArcFace (SFN) & \underline {0.0617} & \underline {0.5522} & \underline {0.9140} & 0.9939\\
-\hline
-\multirow{2}{*}{OS vs. symmetric OS (cosine)} & Cos-OS & \textcolor{blue}{\bf 0.8841} & \textcolor{blue}{\bf 0.9503} & \underline {0.9845} & \underline {0.9939}\\
+\cline{1-6}
+\multirow{2}{*}{HFN vs. SFN (CosFace)} & CosFace & \underline {0.0361} & 0.2789 & 0.8900 & 0.9934\\
+ & SFN-CosFace & 0.0322 & \underline {0.4377} & \underline {0.9030} & \underline {0.9947}\\
+\cline{1-6}
+\multirow{2}{*}{HFN vs. SFN (ArcFace)} & ArcFace & 0.0107 & 0.1745 & 0.8801 & \underline {0.9942}\\
+ & SFN-ArcFace & \underline {0.0617} & \underline {0.5522} & \underline {0.9140} & 0.9939\\
+\cline{1-6}
+\multirow{2}{*}{HFN vs. SFN (Cos-EOS)} & Cos-EOS & \underline {0.9849} & \underline {0.9919} & 0.9923 & 0.9923\\
+ & Cos-EOS (SFN) & 0.9579 & 0.9848 & \underline {0.9928} & \underline {0.9930}\\
+\cline{1-6}
+\multirow{2}{*}{HFN vs. SFN (Arc-EOS)} & Arc-EOS & \underline {0.9853} & \underline {0.9933} & \underline {0.9933} & \underline {0.9933}\\
+ & Arc-EOS (SFN) & 0.9677 & 0.9857 & 0.9931 & \underline {0.9933}\\
+\cline{1-6}
+\multirow{2}{*}{OS vs. symm. OS (Cos-OS)} & Cos-OS & \underline {0.8841} & \underline {0.9503} & \underline {0.9845} & \underline {0.9939}\\
  & Cos-OS (non-sym.) & 0.8548 & 0.9498 & 0.9842 & 0.9933\\
-\hline
-\multirow{2}{*}{OS vs. symmetric OS (angular)} & Arc-OS & \underline {0.8779} & 0.9483 & 0.9851 & \underline {0.9936}\\
- & Arc-OS (non-sym.) & 0.8769 & \underline {0.9499} & \textcolor{blue}{\bf 0.9857} & 0.9933\\
-\hline
+\cline{1-6}
+\multirow{2}{*}{OS vs. symm. OS (Arc-OS)} & Arc-OS & \underline {0.8779} & 0.9483 & 0.9851 & \underline {0.9936}\\
+ & Arc-OS (non-sym.) & 0.8769 & \underline {0.9499} & \underline {0.9857} & 0.9933\\
+\cline{1-6}
 \end{tabularx}

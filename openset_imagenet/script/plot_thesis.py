@@ -40,9 +40,9 @@ COLORS = {
     "objectosphere": clrs[0],
     "garbage": clrs[0],
     # face losses (HFN)
-    "sphereface": clrs[1],
-    "cosface": clrs[2],
-    "arcface": clrs[3],
+    "sphereface": clrs[3],
+    "cosface": clrs[1],
+    "arcface": clrs[4],
     # face losses (SFN)
     'norm_sfn': clrs[1],
     'cosface_sfn': clrs[2],
@@ -56,9 +56,11 @@ COLORS = {
     "cos_eos": clrs[2],
     "arc_eos": clrs[3],
     # early tries
-    "cos_os_non_symmetric": clrs[4],
-    "arc_os_non_symmetric": clrs[4],
-    "sm_softmax": clrs[4]
+    "cos_eos_sfn": clrs[3],
+    "arc_eos_sfn": clrs[2],
+    "cos_os_non_symmetric": clrs[6],
+    "arc_os_non_symmetric": clrs[7],
+    "sm_softmax": clrs[0]
 }
 
 STYLES = {
@@ -83,6 +85,9 @@ STYLES = {
     "norm_eos": "solid",
     "cos_eos": "solid",
     "arc_eos": "solid",
+    # margin-eos (SFN)
+    "cos_eos_sfn": "solid",
+    "arc_eos_sfn": "solid",
     # early tries
     "cos_os_non_symmetric": "solid",
     "arc_os_non_symmetric": "solid",
@@ -105,9 +110,9 @@ NAMES = {
     "cosface": "CosFace",
     "arcface": "ArcFace",
     # face losses (SFN)
-    'norm_sfn': "Norm (SFN)",
-    'cosface_sfn': "CosFace (SFN)",
-    'arcface_sfn': "ArcFace (SFN)",
+    'norm_sfn': "SFN-Norm",
+    'cosface_sfn': "SFN-CosFace",
+    'arcface_sfn': "SFN-ArcFace",
     # margin-OS (SFN)
     'softmax_os': 'Norm-OS',
     'cos_os': 'Cos-OS',
@@ -117,6 +122,8 @@ NAMES = {
     "cos_eos": "Cos-EOS",
     "arc_eos": "Arc-EOS",
     # early tries
+    "cos_eos_sfn": "Cos-EOS (SFN)",
+    "arc_eos_sfn": "Arc-EOS (SFN)",
     "cos_os_non_symmetric": "Cos-OS (non-sym.)",
     "arc_os_non_symmetric": "Arc-OS (non-sym.)",
     "sm_softmax": "SM-Softmax",
@@ -163,6 +170,7 @@ def command_line_options(command_line_arguments=None):
 			'norm_sfn', 'cosface_sfn', 'arcface_sfn',  				# face losses (SFN)
 			'softmax_os', 'cos_os', 'arc_os',  						# margin-OS (SFN)
 			'norm_eos', 'cos_eos', 'arc_eos',  						# margin-EOS (HFN)
+			'cos_eos_sfn', 'arc_eos_sfn',     						# margin-EOS (SFN)
             'cos_os_non_symmetric', 'arc_os_non_symmetric', 'sm_softmax'
 		),
         default = (
@@ -171,6 +179,7 @@ def command_line_options(command_line_arguments=None):
 			'norm_sfn', 'cosface_sfn', 'arcface_sfn',  				# face losses (SFN)
 			'softmax_os', 'cos_os', 'arc_os',  						# margin-OS (SFN)
 			'norm_eos', 'cos_eos', 'arc_eos',  						# margin-EOS (HFN)
+			'cos_eos_sfn', 'arc_eos_sfn',     						# margin-EOS (SFN)
             'cos_os_non_symmetric', 'arc_os_non_symmetric', 'sm_softmax'
         ),
         help = "Select the loss functions that should be included into the plot"
@@ -179,7 +188,7 @@ def command_line_options(command_line_arguments=None):
         "--algorithms", "-a",
         choices = ["threshold", "openmax", "evm", "proser", "maxlogits"],
         nargs = "+",
-        default = ["threshold"],
+        default = ["threshold", "maxlogits"],
         help = "Which algorithm to include into the plot. Specific parameters should be in the yaml file"
     )
     parser.add_argument(
@@ -433,14 +442,107 @@ def plot_feature_magnitudes(args, features, ground_truths, pdf):
         pdf.savefig(bbox_inches='tight', pad_inches = 0)
 
 
-def plot_angle_distributions(args, angles, ground_truths, pdf):
+
+def angle_legend(categories, category_names, category_colors, figure, **kwargs):
+    """Creates a legend with the different line style and colors"""
+    # add dummy plots for the different styles
+    from matplotlib.lines import Line2D
+
+    # create legend elements
+    empty_legend = Line2D([None], [None], marker=".", visible=False)
+    padding = 0
+    l_padding = max(padding, 0)
+
+    # add legend elements with sufficient padding
+    legend_elements = \
+            [empty_legend]*(l_padding//2) + \
+            [Line2D([None], [None], linestyle='solid', color=category_colors[cat]) for cat in categories] + \
+            [empty_legend]*(l_padding//2 + l_padding%2)
+            # [empty_legend]*(a_padding//2) + \
+            # [Line2D([None], [None], linestyle="solid", color=COLORS[algorithm]) for algorithm in algorithms] + \
+            # [empty_legend]*(a_padding//2 + + a_padding%2)
+
+    labels = \
+            [""] *(l_padding//2) + \
+            [category_names[cat] for cat in categories] + \
+            [""]*(l_padding//2 + l_padding%2)
+            # [""] *(a_padding//2) + \
+            # [NAMES[algorithm] for algorithm in algorithms] + \
+            # [""]*(a_padding//2 + + a_padding%2)
+
+    # re-order row-first to column-first
+    columns = len(categories)
+
+    # indexes = [i for j in range(columns) for i in (j, j+columns)]
+    indexes = [j for j in range(columns)]
+    legend_elements = [legend_elements[index] for index in indexes]
+    labels = [labels[index] for index in indexes]
+
+    figure.legend(handles=legend_elements, labels=labels, loc="lower center", ncol=columns, **kwargs)
+
+
+# probability curves
+def round_to_one(d):
+    """find smallest number n < 1 that rounds to 1 when rounding to d decimals."""
+    numerator = (10**np.arange(1,d+1)).sum()*9 + 5
+    denominator = 10**(d+1)
+    return numerator/denominator
+
+def find_s(d, C, alpha):
+    """
+    find lower strict bound on upper bound (beta) of logits s.t. the softmax for a class can still reach 1.
+
+    logit_i in [alpha, beta] forall i in {1, ..., C}
+
+    parameters
+        d(int): decimals to which round softmax
+        C(int): nr of classes, i.e., dimension of softmax
+        alpha(float): lower bound of logits.
+    """
+    rounding_precision = round_to_one(d)
+    return np.log(rounding_precision/(1-rounding_precision)) + np.log(C-1) + alpha
+
+def l_ada(decimals, C):
+    """lower bound of s implicitely given by AdaCos paper."""
+    p_w = round_to_one(decimals)
+    return  np.log((C-1)*p_w/(1-p_w))
+
+def l_cos(decimals, C):
+    """lower bound of s according to CosFace paper."""
+    return l_ada(decimals, C) * ((C-1) / C)
+
+def prob_cosine_margin(theta, s, m, C):
+    """probability with cosine margin as function of s, m, C"""
+    logit_j = np.exp(s * (np.cos(theta) - m))
+    return logit_j / (logit_j + (C-1))
+
+def prob_angular_margin(theta, s, m, C):
+    """probability with angular margin as function of s, m, C"""
+    logit_j = np.exp(s * np.cos(theta + m))
+    return logit_j / (logit_j + (C-1))
+
+
+def plot_angle_distributions(losses, protocols, angles, ground_truths):
     """plot distributions of angles to class centers. depicts angles of deep features to:
     - true class (for knowns)
     - closest class (for unknowns and negatives respectively)
     """
-    P = len(args.protocols)
-    algs = [a for a in args.algorithms if a != 'maxlogits']
-    A = len(algs) + 3
+    class_per_protocol = {
+        1: 116,
+        2: 30,
+        3: 151,
+    }
+    decimals = 5
+    thetas = np.linspace(0, np.pi, 100)
+
+    density=True
+    P = len(protocols)
+    L = len(losses)
+    algorithm = 'threshold'
+    categories = ['known_true', 'unknown_smallest', 'negative_smallest'] 
+    # algs = [a for a in args.algorithms if a != 'maxlogits']
+    # A = len(algs) + 3
+
     # fig = pyplot.figure(figsize=(6*(A+1),3*P))
     # gs = fig.add_gridspec(P, A+1, hspace=0.25, wspace=0.1)
     # axs = gs.subplots(sharex=True, sharey=False)
@@ -457,129 +559,96 @@ def plot_angle_distributions(args, angles, ground_truths, pdf):
     # Manual colors
     category_color = {
         'known_true': colors.to_rgba('tab:blue', 1),
-        'known_smallest': colors.to_rgba('tab:orange', 1),
-        'known_avg': colors.to_rgba('tab:orange', 1),
-        'known_max': colors.to_rgba('tab:orange', 1),
-        'known_std': colors.to_rgba('tab:orange', 1),
         'unknown_smallest': colors.to_rgba('indianred', 1),
         'negative_smallest': colors.to_rgba('tab:green', 1),
-        # 'known_wrong_mean': colors.to_rgba('tab:orange', 1),
-        'unknown_max': colors.to_rgba('indianred', 1),
-        'negative_max': colors.to_rgba('tab:green', 1),
-        'unknown_avg': colors.to_rgba('indianred', 1),
-        'negative_avg': colors.to_rgba('tab:green', 1),
-        'unknown_std': colors.to_rgba('indianred', 1),
-        'negative_std': colors.to_rgba('tab:green', 1)
+        'curve': 'black',
     }
     category_color_fill = {
         'known_true': colors.to_rgba('tab:blue', .04),
-        'known_smallest': colors.to_rgba('tab:orange', .04),
-        'known_avg': colors.to_rgba('tab:orange', .04),
-        'known_max': colors.to_rgba('tab:orange', .04),
-        'known_std': colors.to_rgba('tab:orange', .04),
         'unknown_smallest': colors.to_rgba('indianred', .04),
         'negative_smallest': colors.to_rgba('tab:green', .04),
-        # 'known_wrong_mean': colors.to_rgba('tab:orange', .04),
-        'unknown_max': colors.to_rgba('indianred', .04),
-        'negative_max': colors.to_rgba('tab:green', .04),
-        'unknown_avg': colors.to_rgba('indianred', .04),
-        'negative_avg': colors.to_rgba('tab:green', .04),
-        'unknown_std': colors.to_rgba('indianred', .04),
-        'negative_std': colors.to_rgba('tab:green', .04)
     }
     category_name = {
-        'known_true': r"Known ($y_i$)",
-        'known_smallest': "Known (Min non-true)",
-        'known_avg': r"Known ($avg_j\theta_{i,j}, j\neq y_i$)",
-        'known_max': r"Known ($\max_j\theta_{i,j}, j\neq y_i$)",
-        'known_std': r"Known ($std_j\theta_{i,j}, j\neq y_i$)",
-        'unknown_smallest': "Unknown (Min)",
-        'unknown_avg': "Unknown (Avg)",
-        'unknown_largest': "Unknown (Max)",
-        'negative_smallest': "Negative (Min)",
-        # 'known_wrong_mean': "Known (Avg. non-true)",
-        'unknown_max': "Unknown (Max)",
-        'negative_max': "Negative (Max)",
-        'unknown_avg': "Unknown (Avg)",
-        'negative_avg': "Negative (Avg)",
-        'unknown_std': "Unknown (Std)",
-        'negative_std': "Negative (Std)"
+        'known_true': "Known",
+        'unknown_smallest': "Unknown",
+        'negative_smallest': "Negative",
+        'curve': 'Probability Curve',
     }
     
+    fig = pyplot.figure(figsize=(4*P,3*L))
+    gs = fig.add_gridspec(L, P, hspace=0.45, wspace=0.1)
+    axs = gs.subplots(sharex=True, sharey=True)
+    axs = axs.flat
 
-    for loss in args.losses:
+    for index_l, loss in enumerate(losses):
 
-        fig = pyplot.figure(figsize=(4*A,3*P))
-        gs = fig.add_gridspec(P, A, hspace=0.45, wspace=0.1)
-        axs = gs.subplots(sharex=False, sharey=True)
-        axs = axs.flat
 
-        for index, protocol in enumerate(args.protocols):
-            for a, algorithm in enumerate(algs):
+        for index_p, protocol in enumerate(protocols):
+            # for a, algorithm in enumerate(algs):
 
-                distributions = openset_imagenet.util.get_angle_distributions(angles[protocol][loss][algorithm], ground_truths[protocol])
+            distributions = openset_imagenet.util.get_angle_distributions(angles[protocol][loss][algorithm], ground_truths[protocol], density=density)
 
-                if P==1 and A==1:
-                    ax = axs
-                else:
-                    ax = axs[2*index+a]
-                
-                for cat in ['known_true', 'known_smallest', 'unknown_smallest', 'negative_smallest']:
-                    ax.stairs(
-                        distributions[cat][0], distributions[cat][1], 
-                        fill=True, color=category_color_fill[cat], edgecolor=category_color[cat],
-                        label=category_name[cat], linewidth=linewidth
-                    )
-
-                # # axis formating
-                ax.set_xlim(0, numpy.pi)
-                ax.legend(fontsize=6)
-                ax.set_xticks(x_tick)
-                ax.set_xticklabels(x_label)
+            ax = axs[3*index_l+index_p]
             
-            # # plot max angle distributions
-            distributions = openset_imagenet.util.get_angle_distributions(angles[protocol][loss]['threshold'], ground_truths[protocol])
+            for cat in categories:
+                ax.stairs(
+                    distributions[cat][0], distributions[cat][1], 
+                    fill=True, color=category_color_fill[cat], edgecolor=category_color[cat],
+                    label=category_name[cat], linewidth=linewidth
+                )
 
-            for i, suffix in enumerate(['avg', 'max', 'std']):
+            title = f'$P_{protocol}$ {NAMES[loss]}'
+            ax.set_title(title, fontsize=font_size)
 
-                ax = axs[2*index+a+(i+1)]
-                for cat in ['known_true', 'known_'+suffix, 'unknown_'+suffix, 'negative_'+suffix]:
-                    if suffix == 'std' and cat == 'known_true':
-                        continue
-                    ax.stairs(
-                        distributions[cat][0], distributions[cat][1], 
-                        fill=True, color=category_color_fill[cat], edgecolor=category_color[cat],
-                        label=category_name[cat], linewidth=linewidth
-                    )
-
-                # add wald confidence interval based on avg std and avg mean
-                if suffix == 'avg':
-                    for sample_type in ['negative', 'unknown']:
-                        avg_mean = numpy.mean(distributions[sample_type+'_avg'][1])
-                        avg_std  = numpy.mean(distributions[sample_type+'_std'][1])
-
-                        n = len(distributions[sample_type+'_std'][1])
-                        z = 2.58  # 2.58 for 99% CI, 1.96 for 95% CI
-                        deviation = z * avg_std / numpy.sqrt(n)  
-
-                        ax.axvline(avg_mean+deviation, linestyle='dotted', color=category_color[sample_type+'_avg'])
-                        ax.axvline(avg_mean-deviation, linestyle='dotted', color=category_color[sample_type+'_std'], label='99% Wald CI')
-
-                # axis formating
-                if suffix != 'std':
-                    ax.set_xlim(0, numpy.pi)
-                    ax.set_xticks(x_tick)
-                    ax.set_xticklabels(x_label)
-                ax.legend(fontsize=6)
-                # ax.legend(prop={'size': font_size})
+            # # axis formating
+            ax.set_xlim(0, numpy.pi)
+            if density:
+                ax.set_ylim(0, 7)
+            else:
+                ax.set_ylim(0, 2000)
+            # ax.legend(fontsize=6)
+            ax.set_xticks(x_tick)
+            ax.set_xticklabels(x_label)
 
 
-        # X label
-        fig.text(0.5, -0.05, f'{NAMES[loss]} Angles to Class Centers (radians)', ha='center', fontsize=font_size)
-        fig.text(0.08, 0.5, 'Frequency', va='center', rotation='vertical', fontsize=font_size)
+            if loss not in ['softmax', 'entropic', 'objectosphere']:
+                # superimpose probability curve
+                ax2 = ax.twinx()
 
-        pdf.savefig(bbox_inches='tight', pad_inches = 0)
-    
+                C = class_per_protocol[protocol]
+                s_cos = l_cos(decimals=decimals, C=C)
+                s = np.ceil(s_cos)
+                zero_curve = [prob_angular_margin(theta, s=s, m=0, C=C) for theta in thetas]
+                if loss in ['cosface_sfn', 'cos_os', 'cos_eos']:  # cosine margin losses
+                    curve = [prob_cosine_margin(theta, s=s, m=0.35, C=C) for theta in thetas]
+                    ax2.plot(thetas, curve, color='black', linestyle='dashed', linewidth=linewidth)
+                elif loss in ['arcface_sfn', 'arc_os', 'arc_eos']:  # angular margin losses
+                    curve = [prob_angular_margin(theta, s=s, m=0.5, C=C) for theta in thetas]
+                    ax2.plot(thetas, curve, color='black', linestyle='dashed', linewidth=linewidth)
+
+                ax2.plot(thetas, zero_curve, color='black', linewidth=linewidth)
+                if protocol != 3:
+                    ax2.set_yticklabels([])
+
+
+    # add legend
+    anchor_legend_x, anchor_legend_y = 0.5, 0.02
+    cats = categories.copy()
+    cats.append('curve')
+    angle_legend(
+        cats, category_name, category_color, fig,
+        bbox_to_anchor=(anchor_legend_x,anchor_legend_y), handletextpad=0.6, columnspacing=1.5, fontsize=font_size
+    )
+
+    # X label
+    fig.text(0.5, 0.07, f'Angle of Sample to Class Center (in radians)', ha='center', fontsize=font_size)
+    if density:
+        y_label = 'Frequency'
+    else:
+        y_label = 'Density'
+    fig.text(0.07, 0.5, y_label, va='center', rotation='vertical', fontsize=font_size)
+    fig.text(1-0.06, 0.5, 'Softmax Score', va='center', rotation='vertical', fontsize=font_size)
+
 
 def plot_CCR_FPR(args, scores, ground_truths, pdf):
     """plot CCR and FPR separately as functions of the threshold."""
@@ -839,7 +908,10 @@ def plot_OSCR(protocols, algorithms, losses, scores, ground_truths, lower_bound_
     gs = fig.add_gridspec(P, 2, hspace=0.25, wspace=0.1)
     axs = gs.subplots(sharex=True, sharey=True)
     axs = axs.flat
-    font = 15
+    fontsize = 12
+
+    if P == 1:
+        fig.subplots_adjust(bottom=0.3)
 
     for index, protocol in enumerate(protocols):
         plot_oscr(
@@ -847,32 +919,39 @@ def plot_OSCR(protocols, algorithms, losses, scores, ground_truths, lower_bound_
             losses=losses,
             arrays=scores[protocol], gt=ground_truths[protocol], 
             scale="semilog", title=f'$P_{protocol}$ Negative',
-            ax_label_font=font, ax=axs[2*index], unk_label=-1,
+            ax_label_font=fontsize, ax=axs[2*index], unk_label=-1,
             lower_bound_CCR=lower_bound_CCR, lower_bound_FPR=lower_bound_FPR
-)
+        )
         plot_oscr(
             algorithms=algorithms,
             losses=losses,
             arrays=scores[protocol], gt=ground_truths[protocol], 
             scale="semilog", title=f'$P_{protocol}$ Unknown',
-            ax_label_font=font, ax=axs[2*index+1], unk_label=-2,
+            ax_label_font=fontsize, ax=axs[2*index+1], unk_label=-2,
             lower_bound_CCR=lower_bound_CCR, lower_bound_FPR=lower_bound_FPR
-)
+        )
     # Axis properties
     for ax in axs:
         ax.label_outer()
         ax.grid(axis='x', linestyle=':', linewidth=1, color='gainsboro')
         ax.grid(axis='y', linestyle=':', linewidth=1, color='gainsboro')
 
+    # positioning of legend and axis labels
+    if len(protocols) == 3:
+        anchor_legend_x, anchor_legend_y = 0.5, 0.02
+        anchor_text_x, anchor_text_y = 0.5, 0.06
+    if len(protocols) == 1:
+        anchor_legend_x, anchor_legend_y = 0.5, 0.01
+        anchor_text_x, anchor_text_y = 0.5, 0.15
+
     # Figure labels
-    fig.text(0.04, 0.5, 'CCR', va='center', rotation='vertical', fontsize=font)
-    fig.text(0.5, 0.06, 'FPR', ha='center', fontsize=font)
+    fig.text(0.06, 0.5, 'CCR', va='center', rotation='vertical', fontsize=fontsize)
+    fig.text(anchor_text_x, anchor_text_y, 'FPR', ha='center', fontsize=fontsize)
 
     # add legend
     oscr_legend(
         losses, algorithms, fig,
-        bbox_to_anchor=(0.5,0.02), handletextpad=0.6, columnspacing=1.5,
-        # title="How to Read: Line Style -> Loss; Color -> Algorithm"
+        bbox_to_anchor=(anchor_legend_x,anchor_legend_y), handletextpad=0.6, columnspacing=1.5
     )
 
 
@@ -986,7 +1065,7 @@ def plot_score_distributions(args, scores, ground_truths, pdf):
 
 
 from openset_imagenet.script.parameter_selection import THRESHOLDS
-def ccr_table(groups, protocols, fpr_thresholds, scores, gt):
+def ccr_table(groups, protocols, fpr_thresholds, scores, gt, highlight_overall_best=True):
 
     def nonemax(a,b):
         b = numpy.array([v if v is not None else numpy.nan for v in b])
@@ -1030,7 +1109,11 @@ def ccr_table(groups, protocols, fpr_thresholds, scores, gt):
                     f.write(f" & {NAMES[loss]}")
                     for i, v in enumerate(results[group][loss]):
                         if v is None: f.write(" &")
-                        elif v == max_total[i]: f.write(f" & \\textcolor{{blue}}{{\\bf {v:.4f}}}")
+                        elif v == max_total[i]: 
+                            if highlight_overall_best:
+                                f.write(f" & \\textcolor{{blue}}{{\\bf {v:.4f}}}")
+                            else:
+                                f.write(f" & \\underline {{{v:.4f}}}")
                         elif v == max_by_grp[group][i]: f.write(f" & \\underline {{{v:.4f}}}")
                         # elif v == max_by_loss[loss][i]: f.write(f" & \\underline{{{v:.4f}}}")
                         else: f.write(f" & {v:.4f}")
@@ -1048,6 +1131,8 @@ def plot_feature_distributions(losses, features, ground_truths):
     # visualization = ['threshold', 'normalized']
     # V = len(visualization)
     magnitude = 10
+    protocol = 10
+    font_size = 15
 
     clrs = cm.tab10(range(10))
     color_map = {i:clrs[i] for i in range(10) if i!=7}  # use tab10 colors except gray
@@ -1067,17 +1152,18 @@ def plot_feature_distributions(losses, features, ground_truths):
     subset_names = ["known", "negative", "unknown", "normalized"]
     S = len(subsets)
 
+
     for loss in losses:
 
-        if features[0][loss][algorithm].shape[1] == 2:
+        if features[protocol][loss][algorithm].shape[1] == 2:
 
             # font_size = 15
             linewidth = 1.1
 
-            model_save = torch.load(f'experiments/Protocol_{10}/{loss}_threshold_curr.pth', map_location=torch.device('cpu'))
+            model_save = torch.load(f'experiments/Protocol_{protocol}/{loss}_threshold_curr.pth', map_location=torch.device('cpu'))
             W = model_save['model_state_dict']['logits.w'].numpy()
 
-            abs_max = numpy.amax(numpy.abs(features[0][loss][algorithm])) * 1.05  # add 10% margin
+            abs_max = numpy.amax(numpy.abs(features[protocol][loss][algorithm])) * 1.05  # add 10% margin
             abs_max = numpy.ceil(abs_max)
 
             # plot without knowns negatives and without unknowns, with negatives, and only with unknowns
@@ -1086,7 +1172,7 @@ def plot_feature_distributions(losses, features, ground_truths):
                 fig = pyplot.figure(figsize=(4,4))
                 ax = fig.subplots()
 
-                feats = features[0][loss][algorithm]
+                feats = features[protocol][loss][algorithm]
                 if i == len(subsets)-1:
                     feats = normalize_array(feats, axis=1, ord=2) * magnitude  # multiply by 10 for better visual scale
                     W_norm = normalize_array(W.T, axis=1, ord=2).T * magnitude
@@ -1113,6 +1199,7 @@ def plot_feature_distributions(losses, features, ground_truths):
                     abs_max = numpy.ceil(abs_max)
                 ax.set_xlim((-abs_max, abs_max))
                 ax.set_ylim((-abs_max, abs_max))
+                ax.tick_params(labelsize=font_size)
                 # ax.set_xlabel(subset_names[i], ha='center', fontsize=font_size)
                 if i == len(subsets)-1:
                     ax.axis('off')
@@ -1120,18 +1207,10 @@ def plot_feature_distributions(losses, features, ground_truths):
                 plt.savefig(f'results/deep_features/df_{loss}_{subset_names[i]}.png')
                 plt.close(fig)
                 
-            # fig.text(0.5, -0.08, f'{NAMES[loss]} Deep Feature Distributions', ha='center', fontsize=font_size)
 
-            # classes = [c for c in sorted(color_map.keys())]
-            # class_colors = [color_map[c] for c in classes]
-
-            # openset_imagenet.util.toy_deep_feature_distribution_legend(classes, class_colors, fig,
-            #     bbox_to_anchor=(0.5,-0.2), handletextpad=0.6, columnspacing=1.5
-            #     # title="Legend"
-            # )
-
-            # pdf.savefig(bbox_inches='tight', pad_inches = 0)
-
+def create_folder(folder):
+    if not os.path.exists(folder):
+        os.mkdir(folder)
 
 
 def main(command_line_arguments = None):
@@ -1140,56 +1219,80 @@ def main(command_line_arguments = None):
 
     msg_format = "{time:DD_MM_HH:mm} {name} {level}: {message}"
     logger.configure(handlers=[{"sink": sys.stderr, "level": "INFO", "format": msg_format}])
-#    logger.add(
-#        sink = sys.stdout,
-#        format=msg_format,
-#        level="INFO")
 
     print("Extracting and loading scores")
     scores, ground_truths, features, logits, angles = load_scores(args, cfg)
     training_scores = load_training_scores(args, cfg)
 
+    create_folder('results/deep_features')
+    create_folder('results/performance_plots')
+    create_folder('results/performance_tables')
+
     # ========== main experiments ==========
 
     # plot OSCR for protocols 1-3 (SFN Margin Losses)
-    print('Plotting OSCR curves for SFN Margin losses')
-    losses = ['softmax', 'cosface_sfn', 'arcface_sfn', 'norm_sfn']
-    plot_OSCR([1,2,3], ['threshold'], losses, scores, ground_truths, lower_bound_CCR=None, lower_bound_FPR=None)
-    pyplot.savefig('results/performance_plots/losses_sfn_margin.png')
+    print('Plotting OSCR curves and angle distributions for SFN Margin losses')
+    losses = ['softmax', 'norm_sfn', 'cosface_sfn', 'arcface_sfn']
+    protocols = [1,2,3]
+
+    plot_OSCR(protocols, ['threshold'], losses, scores, ground_truths, lower_bound_CCR=None, lower_bound_FPR=None)
+    pyplot.savefig('results/performance_plots/sfn-margin-oscr.png')
+    plot_OSCR(protocols, ['maxlogits'], losses, scores, ground_truths, lower_bound_CCR=None, lower_bound_FPR=None)
+    pyplot.savefig('results/performance_plots/sfn-margin-oscr-maxlogits.png')
+
+    plot_angle_distributions(losses, protocols, angles, ground_truths)
+    pyplot.savefig('results/performance_plots/sfn-margin-angles.png')
 
     # plot OSCR for protocols 1-3 (Margin-OS)
-    print('Plotting OSCR curves for Margin-OS losses')
-    losses = ['entropic', 'cos_os', 'arc_os', 'softmax_os']
-    plot_OSCR([1,2,3], ['threshold'], losses, scores, ground_truths, lower_bound_CCR=None, lower_bound_FPR=None)
-    pyplot.savefig('results/performance_plots/losses_margin_os.png')
+    print('Plotting OSCR curves and angle distributions for Margin-OS losses')
+    losses = ['objectosphere', 'softmax_os', 'cos_os', 'arc_os']
+    protocols = [1,2,3]
+
+    plot_OSCR(protocols, ['threshold'], losses, scores, ground_truths, lower_bound_CCR=None, lower_bound_FPR=None)
+    pyplot.savefig('results/performance_plots/margin-os-oscr.png')
+    plot_OSCR(protocols, ['maxlogits'], losses, scores, ground_truths, lower_bound_CCR=None, lower_bound_FPR=None)
+    pyplot.savefig('results/performance_plots/margin-os-oscr-maxlogits.png')
+
+    plot_angle_distributions(losses, protocols, angles, ground_truths)
+    pyplot.savefig('results/performance_plots/margin-os-angles.png')
 
     # plot OSCR for protocols 1-3 (Margin-EOS)
-    print('Plotting OSCR curves for Margin-EOS losses')
-    losses = ['entropic', 'cos_eos', 'arc_eos', 'norm_eos']
-    plot_OSCR([1,2,3], ['threshold'], losses, scores, ground_truths, lower_bound_CCR=None, lower_bound_FPR=None)
-    pyplot.savefig('results/performance_plots/losses_margin_eos.png')
+    print('Plotting OSCR curves and angle distributions for Margin-EOS losses')
+    losses = ['objectosphere', 'norm_eos', 'cos_eos', 'arc_eos']
+    protocols = [1,2,3]
+
+    plot_OSCR(protocols, ['threshold'], losses, scores, ground_truths, lower_bound_CCR=None, lower_bound_FPR=None)
+    pyplot.savefig('results/performance_plots/margin-eos-oscr.png')
+    plot_OSCR(protocols, ['maxlogits'], losses, scores, ground_truths, lower_bound_CCR=None, lower_bound_FPR=None)
+    pyplot.savefig('results/performance_plots/margin-eos-oscr-maxlogits.png')
+
+    plot_angle_distributions(losses, protocols, angles, ground_truths)
+    pyplot.savefig('results/performance_plots/margin-eos-angles.png')
+
 
     # create table for results on protocols 1-3 (split into sections per methods)
     groups = {
         'Benchmarks': ['softmax', 'entropic', 'objectosphere'],
-        'SFN Margin': ['cosface_sfn', 'arcface_sfn', 'norm_sfn'],
-        'Margin-OS' : ['cos_os', 'arc_os', 'softmax_os'],
-        'Margin-EOS': ['cos_eos', 'arc_eos', 'norm_eos']
+        'SFN Margin': ['norm_sfn', 'cosface_sfn', 'arcface_sfn'],
+        'Margin-OS' : ['softmax_os', 'cos_os', 'arc_os'],
+        'Margin-EOS': ['norm_eos', 'cos_eos', 'arc_eos']
     }
     ccr_table(groups=groups, protocols=[1,2,3], fpr_thresholds=args.fpr_thresholds, scores=scores, gt=ground_truths)
 
 
-    # ========== early experiments ==========
+    # ========== preliminary experiments ==========
 
-    # comparison of early experiments
+    # comparison of preliminary experiments
     groups = {
-        'Margin'  : ['sphereface', 'cosface', 'arcface', 'sm_softmax'],
-        'SFN vs. HFN (cosine)': ['cosface', 'cosface_sfn'],
-        'SFN vs. HFN (angular)': ['arcface', 'arcface_sfn'],
-        'OS vs. symmetric OS (cosine)' : ['cos_os', 'cos_os_non_symmetric'],
-        'OS vs. symmetric OS (angular)': ['arc_os', 'arc_os_non_symmetric']
+        'Margin Types'  : ['sm_softmax', 'sphereface', 'cosface', 'arcface'],
+        'HFN vs. SFN (CosFace)': ['cosface', 'cosface_sfn'],
+        'HFN vs. SFN (ArcFace)': ['arcface', 'arcface_sfn'],
+        'HFN vs. SFN (Cos-EOS)': ['cos_eos', 'cos_eos_sfn'],
+        'HFN vs. SFN (Arc-EOS)': ['arc_eos', 'arc_eos_sfn'],
+        'OS vs. sym. OS (Cos-OS)': ['cos_os', 'cos_os_non_symmetric'],
+        'OS vs. sym. OS (Arc-OS)': ['arc_os', 'arc_os_non_symmetric']
     }
-    ccr_table(groups=groups, protocols=[0], fpr_thresholds=args.fpr_thresholds, scores=scores, gt=ground_truths)
+    ccr_table(groups=groups, protocols=[0], fpr_thresholds=args.fpr_thresholds, scores=scores, gt=ground_truths, highlight_overall_best=False)
 
     for group, losses in groups.items():
         print(f'Plotting OSCR curves for "{group}"')
@@ -1207,7 +1310,6 @@ def main(command_line_arguments = None):
         'norm_sfn', 'cosface_sfn', 'arcface_sfn',  				# face losses (SFN)
         'softmax_os', 'cos_os', 'arc_os',  						# margin-OS (SFN)
     ]
-    # losses = ['softmax', 'cosface', 'arcface']
     plot_feature_distributions(losses, features, ground_truths)
 
 

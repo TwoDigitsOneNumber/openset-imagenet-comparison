@@ -95,3 +95,17 @@ cos_eos:
 arc_eos:
   s: 13  # null gets convertet to None
   m: 0.5  # 0.5
+
+
+# ===== margin-EOS (SFN) =====
+cos_eos_sfn:
+  s: 13  # null gets convertet to None
+  m: 0.35  # 0.35
+  lambda: 0.01
+  xi: 13
+  
+arc_eos_sfn:
+  s: 13  # null gets convertet to None
+  m: 0.5  # 0.5
+  lambda: 0.01
+  xi: 13

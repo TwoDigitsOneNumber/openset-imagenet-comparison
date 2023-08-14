@@ -30,7 +30,8 @@ LOSSES_THAT_NEED_FEATURE_MAGNITUDE = [
     'objectosphere',
     'norm_sfn', 'cosface_sfn', 'arcface_sfn',
     'softmax_os', 'cos_os', 'arc_os',
-    'cos_os_non_symmetric', 'arc_os_non_symmetric'
+    'cos_os_non_symmetric', 'arc_os_non_symmetric',
+    'cos_eos_sfn', 'arc_eos_sfn'
 ]
 
 # losses for which to remove the negatives from the data
@@ -48,7 +49,8 @@ LOSSES_THAT_TRAIN_WITH_NEGATIVES_AND_WITHOUT_LABEL_FOR_UNKNOWN = [
     'entropic', 'objectosphere',
     'softmax_os', 'cos_os', 'arc_os',
     'norm_eos', 'cos_eos', 'arc_eos', 
-    'cos_os_non_symmetric', 'arc_os_non_symmetric'
+    'cos_os_non_symmetric', 'arc_os_non_symmetric',
+    'cos_eos_sfn', 'arc_eos_sfn'
 ]
 
 def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
@@ -371,6 +373,17 @@ def worker(cfg):
     elif cfg.loss.type in ['entropic', 'norm_eos', 'cos_eos', 'arc_eos']:
         # We select entropic loss using the unknown class weights from the config file
         loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
+    elif cfg.loss.type in ['cos_eos_sfn', 'arc_eos_sfn']:
+        lmbd = hyperparams['lambda']
+        xi = hyperparams['xi']
+
+        loss = JointLoss(
+            loss_1=EntropicOpensetLoss(n_classes, cfg.loss.w),
+            loss_2=RingLoss(xi),
+            lmbd=lmbd,
+            loss_1_requires_features=False,
+            loss_2_requires_features=True,
+        )
     elif cfg.loss.type in ['norm_sfn', 'arcface_sfn', 'cosface_sfn']:
         lmbd = hyperparams['lambda']
         xi = hyperparams['xi']

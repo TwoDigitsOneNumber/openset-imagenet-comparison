@@ -37,9 +37,9 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
         "--protocols", "-p",
         type=int,
-        choices = (1,2,3,0),
+        choices = (1,2,3,0,10),
         nargs="+",
-        default = (1,2,3),
+        default = (1,2,3,10),
         help="Select the protocols that should be evaluated. Set 0 for toy data."
     )
     parser.add_argument(
@@ -51,6 +51,8 @@ def command_line_options(command_line_arguments=None):
 			'norm_sfn', 'cosface_sfn', 'arcface_sfn',  				# face losses (SFN)
 			'softmax_os', 'cos_os', 'arc_os',  						# margin-OS (SFN)
 			'norm_eos', 'cos_eos', 'arc_eos'  						# margin-EOS (HFN)
+			'cos_eos_sfn', 'arc_eos_sfn',     						# margin-EOS (SFN)
+            'cos_os_non_symmetric', 'arc_os_non_symmetric', 'sm_softmax'
 		),
         default = ('softmax', 'entropic'),
         help = "Select the loss functions that should be included into the plot"
@@ -728,6 +730,7 @@ def plot_feature_distributions(args, features, ground_truths, pdf):
     # algs = [a for a in args.algorithms if a != 'maxlogits']
     # only compute this for threshold to allow for arangement with normalized representation
     algorithm = 'threshold'
+    protocol = 10
     visualization = ['threshold', 'normalized']
     V = len(visualization)
 
@@ -737,18 +740,18 @@ def plot_feature_distributions(args, features, ground_truths, pdf):
     color_map[-1] = 'gray'
     color_map[-2] = 'black'
 
-    target_colors = [color_map[i] for i in ground_truths[0]]
+    target_colors = [color_map[i] for i in ground_truths[protocol]]
 
-    known_only_idx = ground_truths[0] >= 0
-    known_with_negative_idx = numpy.logical_or(ground_truths[0] == -1, known_only_idx)
-    known_with_unknown_idx = numpy.logical_or(ground_truths[0] == -2, known_only_idx)
+    known_only_idx = ground_truths[protocol] >= 0
+    known_with_negative_idx = numpy.logical_or(ground_truths[protocol] == -1, known_only_idx)
+    known_with_unknown_idx = numpy.logical_or(ground_truths[protocol] == -2, known_only_idx)
     subsets = [known_only_idx, known_with_negative_idx, known_with_unknown_idx]
     subset_names = ["Known Classes", "Known and Negative Classes", "Known and Unknown Classes"]
     S = len(subsets)
 
     for loss in args.losses:
 
-        if features[0][loss][algorithm].shape[1] == 2:
+        if features[protocol][loss][algorithm].shape[1] == 2:
 
             fig = pyplot.figure(figsize=(4*S,4*V))
             gs = fig.add_gridspec(V, 3, hspace=0.25, wspace=0.1)
@@ -760,7 +763,7 @@ def plot_feature_distributions(args, features, ground_truths, pdf):
 
             for v, vis in enumerate(visualization):
 
-                feats = features[0][loss][algorithm]
+                feats = features[protocol][loss][algorithm]
                 if vis == 'normalized':
                     feats = normalize_array(feats, axis=1, ord=2) * 10  # multiply by 10 for better visual scale
 
@@ -782,11 +785,6 @@ def plot_feature_distributions(args, features, ground_truths, pdf):
                         alpha=.1,
                         marker='.'
                     )
-
-                    if vis == 'normalized':
-                        # TODO: add class centers to the plot (see test.ipynb)
-                        # TODO: remove ticks from normalized plots
-                        pass
 
                     ax.set_xlim((-abs_max, abs_max))
                     ax.set_ylim((-abs_max, abs_max))
@@ -858,7 +856,7 @@ def main(command_line_arguments = None):
         print("Plotting training metrics")
         plot_training_metrics(args, training_scores, pdf)
 
-        if 0 in args.protocols:
+        if 10 in args.protocols:
             print("Plotting deep feature distributions")
             plot_feature_distributions(args, features, ground_truths, pdf)
     finally:

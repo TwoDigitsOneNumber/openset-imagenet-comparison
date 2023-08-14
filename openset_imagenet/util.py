@@ -196,6 +196,9 @@ STYLES = {
     "norm_eos": "dashdot",
     "cos_eos": "dashed",
     "arc_eos": "dotted",
+    # margin-eos (SFN)
+    "cos_eos_sfn": "dotted",
+    "arc_eos_sfn": "dashed",
     # protocols
     "p1": "dashed",
     "p2": "dotted",
@@ -225,6 +228,9 @@ NAMES = {
     "norm_eos": "Norm-EOS",
     "cos_eos": "Cos-EOS",
     "arc_eos": "Arc-EOS",
+    # margin-eos (SFN)
+    "cos_eos_sfn": "Cos-EOS (SFN)",
+    "arc_eos_sfn": "Arc-EOS (SFN)",
     # algorithms
     "threshold": "Threshold",
     "openmax": "OpenMax",
@@ -239,7 +245,8 @@ NAMES = {
     1: "$P_1$",
     2: "$P_2$",
     3: "$P_3$",
-    0: "$P_0$"
+    0: "$P_0$",
+    10: "$P_{10}$",
 }
 
 def plot_single_oscr(fpr, ccr, ax, loss, algorithm, scale, max_ccr, lower_bound_CCR=None, lower_bound_FPR=None):
@@ -457,7 +464,7 @@ def get_feature_magnitude_distribution(features, gt):
     return distributions
 
 
-def get_angle_distributions(angles, gt):
+def get_angle_distributions(angles, gt, density=False):
     gt = gt.astype(int)
     known_idx = gt >= 0
     unknown_idx = gt == -2
@@ -483,7 +490,6 @@ def get_angle_distributions(angles, gt):
 
     n_bins = 100
     bins = np.linspace(0, np.pi+np.pi/n_bins, n_bins)
-    density = False
 
     distributions = {}
     distributions['known_true'] = np.histogram(angle_known_true_class, bins=bins, density=density)

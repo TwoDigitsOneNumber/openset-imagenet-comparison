@@ -41,6 +41,7 @@ def command_line_options(command_line_arguments=None):
 			'norm_sfn', 'cosface_sfn', 'arcface_sfn',  		# face losses (SFN)
 			'softmax_os', 'cos_os', 'arc_os',  						# margin-OS (SFN)
 			'norm_eos', 'cos_eos', 'arc_eos',  						# margin-EOS (HFN)
+			'cos_eos_sfn', 'arc_eos_sfn',     						# margin-EOS (SFN)
       'cos_os_non_symmetric', 'arc_os_non_symmetric', 'sm_softmax'
 		),
 		default = ('entropic', 'softmax', 'garbage'),
