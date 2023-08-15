@@ -1,11 +1,11 @@
 # Notes on the fork
 
 The loss functions names used in the files and used as command line arguments are:
-'softmax', 'entropic', 'objectosphere',               	# benchmarks
-'sphereface', 'cosface', 'arcface',  					# face losses (HFN)
-'norm_sfn', 'cosface_sfn', 'arcface_sfn',  				# SFN-Margin losses
-'softmax_os', 'cos_os', 'arc_os',  						# Margin-OS losses (SFN)
-'norm_eos', 'cos_eos', 'arc_eos',  						# Margin-EOS losses (HFN)
+- benchmarks:              'softmax', 'entropic', 'objectosphere' 
+- margin-based losses (HFN):       'sphereface', 'cosface', 'arcface'      
+- SFN-Margin losses:       'norm_sfn', 'cosface_sfn', 'arcface_sfn'
+- Margin-OS losses:  'softmax_os', 'cos_os', 'arc_os'        
+- Margin-EOS losses: 'norm_eos', 'cos_eos', 'arc_eos'        
 **Note**: The implementation for Norm-OS is called softmax_os.
 
 Below I provide a (non exhaustive) list of the most important changes made to the original code:
