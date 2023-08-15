@@ -1313,54 +1313,6 @@ def main(command_line_arguments = None):
     plot_feature_distributions(losses, features, ground_truths)
 
 
-    # ==========================================
-
-    # print("Writing file", args.plots)
-    # pdf = PdfPages(args.plots)
-    # try:
-        # plot OSCR (actually not required for best case)
-    #     print("Plotting OSCR curves")
-    #     plot_OSCR(args, scores, ground_truths)
-    #     pdf.savefig(bbox_inches='tight', pad_inches = 0)
-    #     plot_OSCR(args, scores, ground_truths, lower_bound_CCR=.97, lower_bound_FPR=0.1)
-    #     pdf.savefig(bbox_inches='tight', pad_inches = 0)
-
-    #     print("Plotting CCR and FPR curves")
-    #     plot_CCR_FPR(args, scores, ground_truths, pdf)
-
-    #     """
-    #     if not args.linear and not args.use_best and not args.sort_by_loss:
-    #       # plot confidences
-    #       print("Plotting confidence plots")
-    #       plot_confidences(args)
-    #       pdf.savefig(bbox_inches='tight', pad_inches = 0)
-    #     """
-
-    #     # plot histograms
-    #     print("Plotting score distribution histograms")
-    #     plot_score_distributions(args, scores, ground_truths, pdf)
-
-    #     # plot feature magnitude distributions
-    #     print("Plotting feature magnitude distributions")
-    #     plot_feature_magnitudes(args, features, ground_truths, pdf)
-
-    #     # plot angle distribution
-    #     print("Plotting angle distribution")
-    #     plot_angle_distributions(args, angles, ground_truths, pdf)
-
-    #     # plot training scores
-    #     print("Plotting training metrics")
-    #     plot_training_metrics(args, training_scores, pdf)
-
-    #     if 0 in args.protocols:
-    #         print("Plotting deep feature distributions")
-    #         plot_feature_distributions(args, features, ground_truths, pdf)
-    # finally:
-    #     pdf.close()
-
-    # # create result table
-    # print("Creating CCR Tables")
-    # ccr_table(args, scores, ground_truths)
 
 if __name__ == '__main__':
     main()

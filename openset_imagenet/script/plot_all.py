@@ -712,8 +712,6 @@ def ccr_table(args, scores, gt):
                 for loss in args.losses:
                     f.write(f" & {NAMES[loss]}")
                     for i, v in enumerate(results[algorithm][loss]):
-                        # TODO: fix table such that markings can be done with multiple styles (e.g. max_total must always also be max_by_alg but currently is not italic)
-                        # TODO: figure out what max_by_loss compares
                         if v is None: f.write(" &")
                         elif v == max_total[i]: f.write(f" & \\textcolor{{blue}}{{\\bf {v:.4f}}}")
                         elif v == max_by_alg[algorithm][i]: f.write(f" & \\it {v:.4f}")

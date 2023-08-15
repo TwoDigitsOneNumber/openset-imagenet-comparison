@@ -6,7 +6,7 @@ import yaml
 
 
 def set_logits(protocol, loss_type, in_features, out_features, logit_bias):
-    """return logits based on the specified loss type
+    """Return logits with chosen hyperparameters based on the specified loss type and the protocol.
     
     parameters:
         protocol (int): protocol, used to grab correct hyperparameters from file
@@ -14,10 +14,6 @@ def set_logits(protocol, loss_type, in_features, out_features, logit_bias):
         in_features (int): dimension of deep features, i.e., dimension of input for the logits 
         out_features (int): output dimension of the logits
         logit_bias (bool): currently only here for compatibility, has no effect
-
-        # TODO: update/correct to how it is now
-        **kwargs: add other logit_variant specific parameters as keyword arguments. If not specified, the defaults of the logit class are used. Can be set to multiple arguments even if not all are available for all logits, e.g., when running 'cosface' and 'cosos' in parallel, can set 's' (which affects both since the parameter is called the same) and can also set 'variable_magnitude_during_testing' (which is only available for 'cosos' but does not break the call for 'cosface').
-            -> if a parameter should be set differently for different logit_variants, then the parameter must be renamed in the respective logit class to a distinct name
     """
 
     logit_map = {
