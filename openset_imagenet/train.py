@@ -3,7 +3,7 @@ import time
 import sys
 import pathlib
 from collections import OrderedDict, defaultdict
-import numpy
+import numpy as np
 import torch
 from torch.optim import lr_scheduler
 from torch.utils.tensorboard import SummaryWriter
@@ -12,13 +12,46 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from vast.tools import set_device_gpu, set_device_cpu, device
 import vast
+from pathlib import Path
 from loguru import logger
 from .metrics import confidence, auc_score_binary, auc_score_multiclass
-from .dataset import ImagenetDataset
-from .model import ResNet50, load_checkpoint, save_checkpoint, set_seeds
-from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, ArcFace, CosFace, SphereFace, Softmax, Garbage
+from .dataset import ImagenetDataset, OSCToyDataset
+from .model import ResNet50, LeNetBottleneck, load_checkpoint, save_checkpoint, set_seeds
+from .losses import AverageMeter, EarlyStopping, EntropicOpensetLoss, ObjectosphereLoss, JointLoss, objectoSphere_loss, RingLoss
 import tqdm
+import yaml
+import json
 
+# losses that don't need to load the hyperparams file
+LOSSES_WITHOUT_HYPERPARAMETERS = ['softmax', 'entropic', 'garbage']
+
+# loss functions that require features as input (everything with the joint loss requires feature magnitude)
+LOSSES_THAT_NEED_FEATURE_MAGNITUDE = [  
+    'objectosphere',
+    'norm_sfn', 'cosface_sfn', 'arcface_sfn',
+    'softmax_os', 'cos_os', 'arc_os',
+    'cos_os_non_symmetric', 'arc_os_non_symmetric',
+    'cos_eos_sfn', 'arc_eos_sfn'
+]
+
+# losses for which to remove the negatives from the data
+LOSSES_THAT_TRAIN_WITHOUT_NEGATIVES = [
+    "softmax", 
+    "sphereface", "cosface", "arcface", 
+    "norm_sfn", "cosface_sfn", "arcface_sfn",
+    "sm_softmax"
+]
+
+# losses for which the number of classes C = Y - 1 (Y is label count)
+# (basically all losses trained with negatives (except garbage class approaches) belong here)
+# (garbage doesn't belong here as it relabels them (no longer considered negative (-1), but C+1))
+LOSSES_THAT_TRAIN_WITH_NEGATIVES_AND_WITHOUT_LABEL_FOR_UNKNOWN = [  
+    'entropic', 'objectosphere',
+    'softmax_os', 'cos_os', 'arc_os',
+    'norm_eos', 'cos_eos', 'arc_eos', 
+    'cos_os_non_symmetric', 'arc_os_non_symmetric',
+    'cos_eos_sfn', 'arc_eos_sfn'
+]
 
 def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
     """ Main training loop.
@@ -49,11 +82,15 @@ def train(model, data_loader, optimizer, loss_fn, trackers, cfg):
         labels = device(labels)
 
         # Forward pass
-        features = model(images)
+        logits, features = model(images, labels)
 
         # Calculate loss
-        _, j = loss_fn(features, labels)
+        if cfg.loss.type in LOSSES_THAT_NEED_FEATURE_MAGNITUDE:
+            j = loss_fn(logits, labels, features)
+        else:
+            j = loss_fn(logits, labels)
         trackers["j"].update(j.item(), batch_len)
+
         # Backward pass
         j.backward()
         optimizer.step()
@@ -73,8 +110,7 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
     for metric in trackers.values():
         metric.reset()
 
-    # TODO laurin: test if still needed/working
-    if cfg.loss.type == "garbage":
+    if cfg.loss.type in ["garbage"]:
         min_unk_score = 0.
         unknown_class = n_classes - 1
         last_valid_class = -1
@@ -82,7 +118,6 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
         min_unk_score = 1. / n_classes
         unknown_class = -1
         last_valid_class = None
-
 
     model.eval()
     with torch.no_grad():
@@ -94,12 +129,14 @@ def validate(model, data_loader, loss_fn, n_classes, trackers, cfg):
             batch_len = labels.shape[0]  # current batch size, last batch has different value
             images = device(images)
             labels = device(labels)
-            # TODO laurin: adapt to features
-            features = model(images)
-            logits, _ = loss_fn(features, labels)
+            logits, features = model(images, None)
             scores = torch.nn.functional.softmax(logits, dim=1)
 
-            _, j = loss_fn(logits, labels)
+            # Calculate loss
+            if cfg.loss.type in LOSSES_THAT_NEED_FEATURE_MAGNITUDE:
+                j = loss_fn(logits, labels, features)
+            else:
+                j = loss_fn(logits, labels)
             trackers["j"].update(j.item(), batch_len)
 
             # accumulate partial results in empty tensors
@@ -138,6 +175,7 @@ def get_arrays(model, loader, garbage, pretty=False):
         all_logits = torch.empty((data_len, logits_dim), device="cpu")   # store all logits
         all_feat = torch.empty((data_len, features_dim), device="cpu")   # store all features
         all_scores = torch.empty((data_len, logits_dim), device="cpu")
+        all_angles = torch.empty((data_len, logits_dim), device="cpu")   # store all angles
 
         index = 0
         if pretty:
@@ -146,7 +184,8 @@ def get_arrays(model, loader, garbage, pretty=False):
             curr_b_size = labels.shape[0]  # current batch size, very last batch has different value
             images = device(images)
             labels = device(labels)
-            logits, feature = model(images)
+            logits, features, angles = model(images, None, return_angles=True)
+
             # compute softmax scores
             scores = torch.nn.functional.softmax(logits, dim=1)
             # shall we remove the logits of the unknown class?
@@ -154,19 +193,26 @@ def get_arrays(model, loader, garbage, pretty=False):
             if garbage:
                 logits = logits[:,:-1]
                 scores = scores[:,:-1]
+                angles = angles[:,:-1]
             # accumulate results in all_tensor
             all_targets[index:index + curr_b_size] = labels.detach().cpu()
             all_logits[index:index + curr_b_size] = logits.detach().cpu()
-            all_feat[index:index + curr_b_size] = feature.detach().cpu()
+            all_feat[index:index + curr_b_size] = features.detach().cpu()
             all_scores[index:index + curr_b_size] = scores.detach().cpu()
+            all_angles[index:index + curr_b_size] = angles.detach().cpu()
             index += curr_b_size
         return(
             all_targets.numpy(),
             all_logits.numpy(),
             all_feat.numpy(),
-            all_scores.numpy())
+            all_scores.numpy(),
+            all_angles.numpy())
 
 
+def write_training_scores(epochs, val_conf_kn, val_conf_unk, train_loss, val_loss, loss_function, output_directory):
+    file_path = Path(output_directory) / f"{loss_function}_train_arr.npz"
+    np.savez(file_path, epochs=epochs, val_conf_kn=val_conf_kn, val_conf_unk=val_conf_unk, train_loss=train_loss, val_loss=val_loss)
+    logger.info(f"Validation loss, known and unknown confidences, and training loss saved in: {file_path}")
 
 
 def worker(cfg):
@@ -191,39 +237,62 @@ def worker(cfg):
         mode='w')
 
     # Set image transformations
-    train_tr = transforms.Compose(
-        [transforms.Resize(256),
-         transforms.RandomCrop(224),
-         transforms.RandomHorizontalFlip(0.5),
-         transforms.ToTensor()])
+    if cfg.protocol == 0 or cfg.protocol == 10:  # toy protocol
+        train_tr = transforms.Compose([
+            transforms.Resize(28),
+            transforms.ToTensor()
+        ])
+        val_tr = transforms.Compose([
+            transforms.Resize(28),
+            transforms.ToTensor()
+        ])
 
-    val_tr = transforms.Compose(
-        [transforms.Resize(256),
-         transforms.CenterCrop(224),
-         transforms.ToTensor()])
+    else:  # normal protocols (1-3)
+        train_tr = transforms.Compose(
+            [transforms.Resize(256),
+            transforms.RandomCrop(224),
+            transforms.RandomHorizontalFlip(0.5),
+            transforms.ToTensor()])
+
+        val_tr = transforms.Compose(
+            [transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor()])
 
     # create datasets
     train_file = pathlib.Path(cfg.data.train_file.format(cfg.protocol))
     val_file = pathlib.Path(cfg.data.val_file.format(cfg.protocol))
 
     if train_file.exists() and val_file.exists():
-        train_ds = ImagenetDataset(
-            csv_file=train_file,
-            imagenet_path=cfg.data.imagenet_path,
-            transform=train_tr
-        )
-        val_ds = ImagenetDataset(
-            csv_file=val_file,
-            imagenet_path=cfg.data.imagenet_path,
-            transform=val_tr
-        )
+        if cfg.protocol == 0 or cfg.protocol == 10:  # toy protocol
+            train_ds = OSCToyDataset(
+                csv_file=train_file,
+                imagenet_path=cfg.data.osc_toy_path,
+                transform=train_tr
+            )
+            val_ds = OSCToyDataset(
+                csv_file=val_file,
+                imagenet_path=cfg.data.osc_toy_path,
+                transform=val_tr
+            )
+        else:  # main protocols (1-3)
+            train_ds = ImagenetDataset(
+                csv_file=train_file,
+                imagenet_path=cfg.data.imagenet_path,
+                transform=train_tr
+            )
+            val_ds = ImagenetDataset(
+                csv_file=val_file,
+                imagenet_path=cfg.data.imagenet_path,
+                transform=val_tr
+            )
 
         # If using garbage class, replaces label -1 to maximum label + 1
-        if cfg.loss.type == "garbage":
+        if cfg.loss.type in ["garbage"]:
             # Only change the unknown label of the training dataset
             train_ds.replace_negative_label()
             val_ds.replace_negative_label()
-        elif cfg.loss.type == "softmax":
+        elif cfg.loss.type in LOSSES_THAT_TRAIN_WITHOUT_NEGATIVES:
             # remove the negative label from softmax training set, not from val set!
             train_ds.remove_negative_label()
     else:
@@ -241,7 +310,7 @@ def worker(cfg):
         batch_size=cfg.batch_size,
         shuffle=False,
         num_workers=cfg.workers,
-        pin_memory=True,)
+        pin_memory=True)
 
     # setup device
     if cfg.gpu is not None:
@@ -261,53 +330,115 @@ def worker(cfg):
 
     # set loss
     loss = None
-    if cfg.loss.type == "entropic":
+    if cfg.loss.type in LOSSES_THAT_TRAIN_WITH_NEGATIVES_AND_WITHOUT_LABEL_FOR_UNKNOWN:
         # number of classes - 1 since we have no label for unknown
         n_classes = train_ds.label_count - 1
     else:
-        # number of classes when training with extra garbage class for unknowns, or when unknowns are removed
+        # number of classes when training with extra garbage class for unknowns, or when unknowns were removed (see above train_ds.remove_negative_label())
         n_classes = train_ds.label_count
 
-    # size of deep feature layer
-    FC_LAYER_DIM = n_classes
 
-    if cfg.loss.type == "entropic":
-        # We select entropic loss using the unknown class weights from the config file
-        loss = EntropicOpensetLoss(n_classes, 
-                                   FC_LAYER_DIM,
-                                   n_classes,
-                                   logit_bias=True,
-                                   unk_weight=cfg.loss.w)
-    elif cfg.loss.type == "softmax":
+
+    # ==================================================
+    # ============== SELECT LOSS FUNCTION ==============
+    # ==================================================
+
+
+    # load hyperparameters for the respective loss function
+    if not cfg.loss.type in LOSSES_WITHOUT_HYPERPARAMETERS:
+        hyperparams = yaml.safe_load(open(f'config/p{cfg.protocol}_hyperparameters.yaml'))[cfg.loss.type]
+    else:
+        hyperparams = {}
+    
+    # select loss function
+    if cfg.loss.type in ["softmax", "sphereface", "cosface", "arcface", "sm_softmax"]:
         # We need to ignore the index only for validation loss computation
-        loss = Softmax(FC_LAYER_DIM,
-                       n_classes,
-                       logit_bias=True)
-    elif cfg.loss.type == "garbage":
+        loss = torch.nn.CrossEntropyLoss(ignore_index=-1)
+    elif cfg.loss.type in ["garbage"]:
         # We use balanced class weights
         class_weights = device(train_ds.calculate_class_weights())
-        loss = Garbage(FC_LAYER_DIM,
-                       n_classes,
-                       logit_bias=True,
-                       class_weights=class_weights)
-    elif cfg.loss.type == "sphereface":
-        loss = SphereFace(FC_LAYER_DIM,
-                          n_classes)
-    elif cfg.loss.type == "arcface":
-        loss = ArcFace(FC_LAYER_DIM,
-                       n_classes)
-    elif cfg.loss.type == "cosface":
-        loss = CosFace(FC_LAYER_DIM,
-                       n_classes)
-    # TODO laurin: add magface loss
+        loss = torch.nn.CrossEntropyLoss(weight=class_weights)
+    elif cfg.loss.type == 'objectosphere':
+        lmbd = hyperparams['lambda']
+        xi = hyperparams['xi']
+        symmetric = hyperparams['symmetric']
+
+        loss = JointLoss(
+            loss_1=EntropicOpensetLoss(n_classes, cfg.loss.w),
+            loss_2=ObjectosphereLoss(xi, symmetric=symmetric),
+            # loss_2=objectoSphere_loss(xi),
+            lmbd=lmbd,
+            loss_1_requires_features=False,
+            loss_2_requires_features=True,
+        )
+    elif cfg.loss.type in ['entropic', 'norm_eos', 'cos_eos', 'arc_eos']:
+        # We select entropic loss using the unknown class weights from the config file
+        loss = EntropicOpensetLoss(n_classes, cfg.loss.w)
+    elif cfg.loss.type in ['cos_eos_sfn', 'arc_eos_sfn']:
+        lmbd = hyperparams['lambda']
+        xi = hyperparams['xi']
+
+        loss = JointLoss(
+            loss_1=EntropicOpensetLoss(n_classes, cfg.loss.w),
+            loss_2=RingLoss(xi),
+            lmbd=lmbd,
+            loss_1_requires_features=False,
+            loss_2_requires_features=True,
+        )
+    elif cfg.loss.type in ['norm_sfn', 'arcface_sfn', 'cosface_sfn']:
+        lmbd = hyperparams['lambda']
+        xi = hyperparams['xi']
+
+        loss = JointLoss(
+            loss_1=torch.nn.CrossEntropyLoss(ignore_index=-1),
+            loss_2=RingLoss(xi),
+            lmbd=lmbd,
+            loss_1_requires_features=False,
+            loss_2_requires_features=True,
+        )
+    elif cfg.loss.type in ['softmax_os', 'cos_os', 'arc_os', 'cos_os_non_symmetric', 'arc_os_non_symmetric']:
+        lmbd = hyperparams['lambda']
+        xi = hyperparams['xi']
+        symmetric = hyperparams['symmetric']
+
+        loss = JointLoss(
+            loss_1=torch.nn.CrossEntropyLoss(ignore_index=-1),
+            loss_2=ObjectosphereLoss(xi, symmetric=symmetric),
+            lmbd=lmbd,
+            loss_1_requires_features=False,
+            loss_2_requires_features=True,
+        )
+
+
+
+    # ==================================================
+    # ==================================================
+    # ==================================================
+
+
 
     # Create the model
-    model = ResNet50(fc_layer_dim=FC_LAYER_DIM)
+    if cfg.protocol == 0 or cfg.protocol == 10:  # toy protocol
+        model = LeNetBottleneck(
+            protocol=cfg.protocol,
+            loss_type=cfg.loss.type,
+            deep_feature_dim= 2 if cfg.protocol == 10 else n_classes,
+            out_features=n_classes,
+            logit_bias=False
+        )
+    else:  # main protocols (1-3)
+        model = ResNet50(
+            protocol=cfg.protocol,
+            loss_type=cfg.loss.type,
+            fc_layer_dim=n_classes,
+            out_features=n_classes,
+            logit_bias=False
+        )
     device(model)
 
     # Create optimizer
     if cfg.opt.type == "sgd":
-        opt = torch.optim.SGD(params=model.parameters(), lr=cfg.opt.lr, momentum=0.9)
+        opt = torch.optim.SGD(params=model.parameters(), lr=cfg.opt.lr, momentum=cfg.opt.momentum)
     else:
         opt = torch.optim.Adam(params=model.parameters(), lr=cfg.opt.lr)
 
@@ -320,6 +451,8 @@ def worker(cfg):
             verbose=True)
     else:
         scheduler = None
+
+    nr_epochs = cfg.epochs_p0 if cfg.protocol == 0 or cfg.protocol == 10 else cfg.epochs
 
 
         # Resume a training from a checkpoint
@@ -337,24 +470,39 @@ def worker(cfg):
     # Print info to console and setup summary writer
 
     # Info on console
-    logger.info("============ Data ============")
-    logger.info(f"train_len:{len(train_ds)}, labels:{train_ds.label_count}")
-    logger.info(f"val_len:{len(val_ds)}, labels:{val_ds.label_count}")
-    logger.info("========== Training ==========")
-    logger.info(f"Initial epoch: {START_EPOCH}")
-    logger.info(f"Last epoch: {cfg.epochs}")
-    logger.info(f"Batch size: {cfg.batch_size}")
-    logger.info(f"workers: {cfg.workers}")
-    logger.info(f"Loss: {cfg.loss.type}")
-    logger.info(f"optimizer: {cfg.opt.type}")
-    logger.info(f"Learning rate: {cfg.opt.lr}")
-    logger.info(f"Device: {cfg.gpu}")
-    logger.info("Training...")
+    log_info = f"""
+============ Data ============
+train_len:{len(train_ds)}, labels:{train_ds.label_count}
+val_len:{len(val_ds)}, labels:{val_ds.label_count}
+========== Training ==========
+Initial epoch: {START_EPOCH}
+Last epoch: {nr_epochs}
+Batch size: {cfg.batch_size}
+Workers: {cfg.workers}
+Loss: {cfg.loss.type}
+Optimizer: {cfg.opt.type}
+Learning rate: {cfg.opt.lr}
+Device: {cfg.gpu}
+Protocol: {cfg.protocol}
+=========== Model ============
+Logit type: {model.logit_type}
+Deep feature dim: {model.logits.in_features}
+hyperparameters: {json.dumps(hyperparams, indent=4)}
+==============================
+Training...
+    """
+    logger.info(log_info)
     writer = SummaryWriter(log_dir=cfg.output_directory, filename_suffix="-"+cfg.log_name)
 
-    progress_bar = tqdm.tqdm(range(START_EPOCH, cfg.epochs), desc='epoch')
+    # arrays for storing training scores
+    epochs_arr = np.arange(START_EPOCH, nr_epochs)
+    val_conf_kn  = np.full_like(epochs_arr, fill_value=np.nan, dtype=np.single)
+    val_conf_unk = np.full_like(epochs_arr, fill_value=np.nan, dtype=np.single)
+    train_loss   = np.full_like(epochs_arr, fill_value=np.nan, dtype=np.single)
+    val_loss     = np.full_like(epochs_arr, fill_value=np.nan, dtype=np.single)
 
-    for epoch in progress_bar:
+
+    for epoch in range(START_EPOCH, nr_epochs):
         epoch_time = time.time()
         progress_bar.set_description(f'epoch {epoch+1}, training')
 
@@ -392,6 +540,12 @@ def worker(cfg):
         writer.add_scalar("val/conf_kn", v_metrics["conf_kn"].avg, epoch)
         writer.add_scalar("val/conf_unk", v_metrics["conf_unk"].avg, epoch)
 
+        # adding metrics to np arrays
+        val_conf_kn[epoch]  = v_metrics["conf_kn"].avg
+        val_conf_unk[epoch] = v_metrics["conf_unk"].avg
+        val_loss[epoch]     = v_metrics["j"].avg
+        train_loss[epoch]   = t_metrics["j"].avg
+
         #  training information on console
         # validation+metrics writer+save model time
         val_time = time.time() - train_time - epoch_time
@@ -426,6 +580,9 @@ def worker(cfg):
             if early_stopping.early_stop:
                 logger.info("early stop")
                 break
+
+    output_directory_train = Path(cfg.output_directory)
+    write_training_scores(epochs=epochs_arr, val_conf_kn=val_conf_kn, val_conf_unk=val_conf_unk, val_loss=val_loss, train_loss=train_loss, loss_function=cfg.loss.type, output_directory=output_directory_train)
 
     # clean everything
     del model

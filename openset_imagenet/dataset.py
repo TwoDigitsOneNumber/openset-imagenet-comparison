@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 import torch
+import torchvision
+from torchvision import transforms
 from torch.utils.data.dataset import Dataset
 
 
@@ -90,7 +92,39 @@ class ImagenetDataset(Dataset):
         Returns:
             class_weights: Tensor with weight for every class.
         """
-        # TODO (not laurin): Should it be part of dataset class?
         counts = self.dataset.groupby(1).count().to_numpy()
         class_weights = (len(self.dataset) / (counts * self.label_count))
         return torch.from_numpy(class_weights).float().squeeze()
+
+
+
+class OSCToyDataset(ImagenetDataset):
+    """ OSC Toy example dataset. Consisting of MNIST (knowns), NIST (negatives), and Devanagari (unknowns; only in test set). MNIST and NIST are taken from EMNIST.
+
+    copied from openset_imagenet.dataset.ImagenetDataset and adapted.
+    """
+
+    # only function that needs to be (slightly) adapted, others stay identical to ImagenetDataset
+    def __getitem__(self, index):
+        """ Returns a tuple (image, label) of the dataset at the given index. If available, it
+        applies the defined transform to the image.
+
+        Args:
+            index(int): Image index
+
+        Returns:
+            image, label: (image tensor, label tensor)
+        """
+        if torch.is_tensor(index):
+            index = index.tolist()
+
+        png_path, label = self.dataset.iloc[index]
+        image = Image.open(self.imagenet_path / png_path)
+
+        if self.transform is not None:
+            image = self.transform(image)
+
+        # convert int label to tensor
+        label = torch.as_tensor(int(label), dtype=torch.int64)
+        return image, label
+

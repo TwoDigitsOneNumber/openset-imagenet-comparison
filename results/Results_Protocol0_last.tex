@@ -1,0 +1,10 @@
+\begin{table}[t]
+\centering
+\begin{tabularx}{.7\textwidth}{c|c|cccc}
+\bf Algorithm & \bf Loss & $10^{-3}$ & $10^{-2}$ & $10^{-1}$ & $1$\\\hline\hline
+\multirow{3}{*}{Threshold} & Norm (SFN) & \underline{0.0878} & \underline{0.3841} & \underline{0.8542} & \underline{0.9921}\\
+ & ArcFace (SFN) & \underline{0.0742} & \underline{0.5029} & \textcolor{blue}{\bf 0.9106} & \textcolor{blue}{\bf 0.9945}\\
+ & CosFace (SFN) & \textcolor{blue}{\bf 0.1022} & \textcolor{blue}{\bf 0.5577} & \underline{0.9096} & \underline{0.9942}\\
+\hline
+\end{tabularx}
+\end{table}

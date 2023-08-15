@@ -1,0 +1,11 @@
+\begin{table}[t]
+\centering
+\begin{tabularx}{.7\textwidth}{c|c|cccc}
+\bf Algorithm & \bf Loss & $10^{-3}$ & $10^{-2}$ & $10^{-1}$ & $1$\\\hline\hline
+\multirow{4}{*}{Threshold} & EOS & & \underline{0.1073} & \underline{0.4013} & \underline{0.6253}\\
+ & Cos-EOS & \underline{0.0127} & \underline{0.1553} & \textcolor{blue}{\bf 0.4793} & \textcolor{blue}{\bf 0.6740}\\
+ & Arc-EOS & \underline{0.0027} & \underline{0.1080} & \underline{0.4627} & \underline{0.6733}\\
+ & Norm-EOS & \textcolor{blue}{\bf 0.0353} & \textcolor{blue}{\bf 0.1647} & \underline{0.4073} & \underline{0.6573}\\
+\hline
+\end{tabularx}
+\end{table}

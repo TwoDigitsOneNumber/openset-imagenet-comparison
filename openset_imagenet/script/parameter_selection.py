@@ -24,9 +24,9 @@ def command_line_options(command_line_arguments=None):
     # directory parameters
     parser.add_argument(
         "--losses", "-l",
-        choices = ["softmax", "garbage", "entropic"],
+        choices = ["softmax", "garbage", "entropic", 'sphereface', 'cosface', 'arcface', 'magface'],
         nargs="+",
-        default = ["softmax", "garbage", "entropic"],
+        default = ["softmax", "garbage", "entropic", 'sphereface', 'cosface', 'arcface', 'magface'],
         help="Which loss functions to optimize on"
     )
     parser.add_argument(
@@ -178,7 +178,7 @@ def process_model(protocol, loss, algorithm, cfg, thresholds, suffix, gpu):
 
     # extract features
     logger.info(f"Extracting base scores for protocol {protocol}, {loss}")
-    gt, logits, features, scores = extract(base_model, val_loader, "threshold", loss)
+    gt, logits, features, scores, angles = extract(base_model, val_loader, "threshold", loss)
     # remove model from GPU memory
     del base_model
 

@@ -1,7 +1,7 @@
 """ Code taken from the vast library https://github.com/Vastlab/vast"""
+from torch.nn import functional as F
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import numpy as np
 from vast import tools
 import math
 import abc
@@ -50,14 +50,11 @@ class EntropicOpensetLoss:
             out_features=out_features,
             bias=logit_bias)
 
-
-    def __call__(self, features, targets):
-        logits = self.logit_layer(features)
-
+    def __call__(self, logits, targets):
         categorical_targets = tools.device(torch.zeros(logits.shape))
         unk_idx = targets < 0
         kn_idx = ~unk_idx
-        # check if there is known samples in the batch
+        # check if there are known samples in the batch
         if torch.any(kn_idx):
             categorical_targets[kn_idx, :] = self.eye[targets[kn_idx]]
 
@@ -66,7 +63,7 @@ class EntropicOpensetLoss:
                 torch.sum(unk_idx).item(), self.class_count
             )
         )
-        return logits, self.cross_entropy(logits, categorical_targets)
+        return self.cross_entropy(logits, categorical_targets)
 
 
 class Softmax:
@@ -98,6 +95,112 @@ class Garbage:
 
 
 
+class RingLoss:
+    """Computes ring loss"""
+    def __init__(self, xi):
+        self.xi = xi
+
+    def __call__(self, logits, targets, features):
+        # compute feature magnitudes a
+        a = torch.linalg.norm(features, ord=2, dim=1)
+        return torch.mean(torch.square(self.xi-a))
+
+
+class ObjectosphereLoss:
+    """Computes only the objectosphere loss, i.e.: (J_R - J_E) / lambda. See equation (2) in "Reducing Network Agnostophobia (2018)" by Akshay Raj Dhamija, Manuel Günther, Terrance E. Boult.
+
+    params:
+        xi (float): target lower boundary of feature magnitude for knowns.
+        symmetric (bool): if symmetric, penalize deviation of magnitude to xi of knowns symmetrically, not via max.
+    """
+    def __init__(self, xi, symmetric=False):
+        self.xi = xi
+        self.symmetric = symmetric
+
+    def __call__(self, logits, targets, features):
+        # distinguish knowns from negatives/unknowns (via boolean mask)
+        unk_idx = targets < 0
+        kn_idx = ~unk_idx
+
+        # compute feature magnitudes a
+        a = torch.linalg.norm(features, ord=2, dim=1)
+
+        # compute loss accordingly
+        if self.symmetric:
+            error_knowns = torch.square(self.xi-a[kn_idx])
+        else:
+            error_knowns = torch.square(torch.maximum(self.xi-a[kn_idx], torch.zeros_like(a[kn_idx]))) 
+        error_unknowns = torch.square(a[unk_idx])
+
+        # reduce via mean and then return
+        return torch.mean(torch.cat((error_knowns, error_unknowns)))
+
+
+class objectoSphere_loss:
+    """taken (and slightly adapted for compatibility) from https://github.com/Vastlab/vast/blob/main/vast/losses/losses.py. identical results compared to ObjectosphereLoss."""
+    def __init__(self, xi=50.0):
+        self.knownsMinimumMag = xi
+
+    def __call__(self, logits, target, features, sample_weights=None):
+        # compute feature magnitude
+        mag = features.norm(p=2, dim=1)
+        # For knowns we want a certain magnitude
+        mag_diff_from_ring = torch.clamp(self.knownsMinimumMag - mag, min=0.0)
+
+        # Loss per sample
+        loss = tools.device(torch.zeros(features.shape[0]))
+        known_indexes = target != -1
+        unknown_indexes = ~known_indexes
+        # knowns: punish if magnitude is inside of ring
+        loss[known_indexes] = mag_diff_from_ring[known_indexes]
+        # unknowns: punish any magnitude
+        loss[unknown_indexes] = mag[unknown_indexes]
+        loss = torch.pow(loss, 2)
+        if sample_weights is not None:
+            loss = sample_weights * loss
+        return torch.mean(loss)
+
+
+class JointLoss:
+    """
+    Loss that when called appends loss_2 to loss_1 and weights loss_2 with lmbd.
+
+    loss functions loss_i (i={1,2}) get combined with loss_1 as follows: loss_1(logits, targets) + lmbd * loss_2(logits, targets, features). 
+    It must be able to be called via: loss_i(logits, targets). If it needs the features as additional argument it must be called as loss_i(logits, targets, features) and you must set loss_i_requires_features=True.
+
+    params:
+        loss_1 (function): 
+        loss_2 (function): 
+        lambda_os (float): weight for the objectosphere loss
+        xi (float): target lower boundary of feature magnitude for knowns.
+        loss_1_requires_features (bool): set true if loss_1 requires the features as input.
+        loss_2_requires_features (bool): set true if loss_2 requires the features as input.
+    """
+    def __init__(self, loss_1, loss_2, lmbd, loss_1_requires_features=False, loss_2_requires_features=False):
+        self.loss_1 = loss_1
+        self.loss_2 = loss_2
+        self.lmbd = lmbd
+        self.loss_1_requires_features = loss_1_requires_features
+        self.loss_2_requires_features = loss_2_requires_features
+
+    def __call__(self, logits, targets, features):
+        if self.loss_1_requires_features and self.loss_2_requires_features:
+            return self.loss_1(logits, targets, features) + \
+                self.lmbd * self.loss_2(logits, targets, features)
+
+        elif self.loss_1_requires_features and not self.loss_2_requires_features:
+            return self.loss_1(logits, targets, features) + \
+                self.lmbd * self.loss_2(logits, targets)
+
+        elif not self.loss_1_requires_features and self.loss_2_requires_features:
+            return self.loss_1(logits, targets) + \
+                self.lmbd * self.loss_2(logits, targets, features)
+
+        elif not self.loss_1_requires_features and not self.loss_2_requires_features:
+            return self.loss_1(logits, targets) + \
+                self.lmbd * self.loss_2(logits, targets)
+
+
 class AverageMeter(object):
     """ Computes and stores the average and current value. Taken from
     https://github.com/pytorch/examples/tree/master/imagenet
@@ -120,10 +223,13 @@ class AverageMeter(object):
             val (flat): Current value.
             count (int): Number of samples represented by val. Defaults to 1.
         """
-        self.val = val
-        self.sum += val * count
-        self.count += count
-        self.avg = self.sum / self.count
+        # reason for avoiding update if val=nan:
+        # when training CosOS we ignore index -1 and in certain batches it happens that all indices are -1 resulting in loss=nan. This issue is unavoidable for this implementation and this workaround prevents the average training loss from being nan if only a few batch losses are nan
+        if not np.isnan(val):
+            self.val = val
+            self.sum += val * count
+            self.count += count
+            self.avg = self.sum / self.count
 
     def __repr__(self):
         return f"{self.avg:3.3f}"
@@ -161,106 +267,3 @@ class EarlyStopping:
         else:
             self.best_score = score
             self.counter = 0
-
-
-# from: https://github.com/ydwen/opensphere/blob/032c31b8918fb7639d3b34ac7433bfd537c6c518/model/head/arcface.py but adapted
-class ArcFace:
-    """ reference: <Additive Angular Margin Loss for Deep Face Recognition>
-    """
-    def __init__(self, feat_dim, num_class, s=64., m=0.5):
-        # TODO laurin: make sure all data structures are on device (tools.device())
-        self.feat_dim = feat_dim
-        self.num_class = num_class
-        self.s = s
-        self.m = m
-        self.w = nn.Parameter(torch.Tensor(feat_dim, num_class))
-        nn.init.xavier_normal_(self.w)
-
-    def __call__(self, features, targets):
-        """computes logits and loss"""
-        with torch.no_grad():
-            self.w.data = F.normalize(self.w.data, dim=0)
-
-        cos_theta = F.normalize(features, dim=1).mm(self.w)
-        with torch.no_grad():
-            theta_m = torch.acos(cos_theta.clamp(-1+1e-5, 1-1e-5))
-            theta_m.scatter_(1, targets.view(-1, 1), self.m, reduce='add')
-            theta_m.clamp_(1e-5, 3.14159)
-            d_theta = torch.cos(theta_m) - cos_theta
-
-        logits = self.s * (cos_theta + d_theta)
-        loss = F.cross_entropy(logits, targets)
-
-        return logits, loss
-
-
-# from: https://github.com/ydwen/opensphere/blob/032c31b8918fb7639d3b34ac7433bfd537c6c518/model/head/cosface.py but adapted
-class CosFace:
-    """reference1: <CosFace: Large Margin Cosine Loss for Deep Face Recognition>
-       reference2: <Additive Margin Softmax for Face Verification>
-    """
-    def __init__(self, feat_dim, num_class, s=64., m=0.35):
-        # TODO laurin: make sure all data structures are on device (tools.device())
-        self.feat_dim = feat_dim
-        self.num_class = num_class
-        self.s = s
-        self.m = m
-        self.w = nn.Parameter(torch.Tensor(feat_dim, num_class))
-        nn.init.xavier_normal_(self.w)
-
-    def __call__(self, features, targets):
-        """computes logits and loss"""
-        with torch.no_grad():
-            self.w.data = F.normalize(self.w.data, dim=0)
-
-        cos_theta = F.normalize(features, dim=1).mm(self.w)
-        with torch.no_grad():
-            d_theta = torch.zeros_like(cos_theta)
-            d_theta.scatter_(1, targets.view(-1, 1), -self.m, reduce='add')
-
-        logits = self.s * (cos_theta + d_theta)
-        loss = F.cross_entropy(logits, targets)
-
-        return logits, loss
-
-
-# from: https://github.com/ydwen/opensphere/blob/032c31b8918fb7639d3b34ac7433bfd537c6c518/model/head/sphereface.py but adapted
-class SphereFace:
-    """ reference: <SphereFace: Deep Hypersphere Embedding for Face Recognition>"
-        It also used characteristic gradient detachment tricks proposed in
-        <SphereFace Revived: Unifying Hyperspherical Face Recognition>.
-    """
-    def __init__(self, feat_dim, num_class, s=30., m=1.5):
-        # TODO laurin: make sure all data structures are on device (tools.device())
-        self.feat_dim = feat_dim
-        self.num_class = num_class
-        self.s = s
-        self.m = m
-        self.w = nn.Parameter(torch.Tensor(feat_dim, num_class))
-        nn.init.xavier_normal_(self.w)
-
-    def __call__(self, features, targets):
-        """computes logits and loss"""
-        # weight normalization
-        with torch.no_grad():
-            self.w.data = F.normalize(self.w.data, dim=0)
-
-        # cos_theta and d_theta
-        cos_theta = F.normalize(features, dim=1).mm(self.w)
-        with torch.no_grad():
-            m_theta = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
-            m_theta.scatter_(
-                1, targets.view(-1, 1), self.m, reduce='multiply',
-            )
-            k = (m_theta / math.pi).floor()
-            sign = -2 * torch.remainder(k, 2) + 1  # (-1)**k
-            phi_theta = sign * torch.cos(m_theta) - 2. * k
-            d_theta = phi_theta - cos_theta
-
-        logits = self.s * (cos_theta + d_theta)
-        loss = F.cross_entropy(logits, targets)
-
-        return logits, loss
-
-
-

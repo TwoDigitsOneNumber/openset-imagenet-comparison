@@ -173,9 +173,9 @@ def plot_OSCR(args, scores):
       for index, l in enumerate(args.loss_functions):
 #        val = [scores[p][l]["val"] if scores[p][l] is not None else None for p in args.protocols]
         test = [scores[p][l]["test"] if scores[p][l] is not None else None for p in args.protocols]
-        openset_imagenet.util.plot_oscr(arrays=test, methods=[l]*len(args.protocols), scale=scale, title=f'{args.labels[index]} Negative',
+        openset_imagenet.util.plot_oscr(args=args, arrays=test, methods=[l]*len(args.protocols), scale=scale, title=f'{args.labels[index]} Negative',
                       ax_label_font=font, ax=axs[index], unk_label=-1,)
-        openset_imagenet.util.plot_oscr(arrays=test, methods=[l]*len(args.protocols), scale=scale, title=f'{args.labels[index]} Unknown',
+        openset_imagenet.util.plot_oscr(args=args, arrays=test, methods=[l]*len(args.protocols), scale=scale, title=f'{args.labels[index]} Unknown',
                       ax_label_font=font, ax=axs[index+P], unk_label=-2,)
       # Manual legend
       axs[-P].legend([f"$P_{p}$" for p in args.protocols], frameon=False,
@@ -184,9 +184,9 @@ def plot_OSCR(args, scores):
       for index, p in enumerate(args.protocols):
 #        val = [scores[p][l]["val"] if scores[p][l] is not None else None for l in args.loss_functions]
         test = [scores[p][l]["test"] if scores[p][l] is not None else None for l in args.loss_functions]
-        openset_imagenet.util.plot_oscr(arrays=test, methods=args.loss_functions, scale=scale, title=f'$P_{p}$ Negative',
+        openset_imagenet.util.plot_oscr(args=args, arrays=test, methods=args.loss_functions, scale=scale, title=f'$P_{p}$ Negative',
                       ax_label_font=font, ax=axs[index], unk_label=-1,)
-        openset_imagenet.util.plot_oscr(arrays=test, methods=args.loss_functions, scale=scale, title=f'$P_{p}$ Unknown',
+        openset_imagenet.util.plot_oscr(args=args, arrays=test, methods=args.loss_functions, scale=scale, title=f'$P_{p}$ Unknown',
                       ax_label_font=font, ax=axs[index+P], unk_label=-2,)
       # Manual legend
       axs[-P].legend(args.labels, frameon=False,
@@ -438,10 +438,10 @@ def main():
 
   for index, l in enumerate(args.loss_functions):
       test = [scores[p][l]["test"] if scores[p][l] is not None else None for p in args.protocols]
-      openset_imagenet.util.plot_oscr(arrays=test, methods=[l]*len(args.protocols), scale=scale, title=f'{args.labels[index]} Unknown', ax_label_font=font, ax=axs[0], unk_label=-2,)
+      openset_imagenet.util.plot_oscr(args=args, arrays=test, methods=[l]*len(args.protocols), scale=scale, title=f'{args.labels[index]} Unknown', ax_label_font=font, ax=axs[0], unk_label=-2,)
 
       val = [scores[p][l]["val"] if scores[p][l] is not None else None for p in args.protocols]
-      openset_imagenet.util.plot_oscr(arrays=val, methods=[l]*len(args.protocols), scale=scale, title=f'{args.labels[index]} Negative', ax_label_font=font, ax=axs[1], unk_label=-1,)
+      openset_imagenet.util.plot_oscr(args=args, arrays=val, methods=[l]*len(args.protocols), scale=scale, title=f'{args.labels[index]} Negative', ax_label_font=font, ax=axs[1], unk_label=-1,)
   
   pdf.savefig()
   pdf.close()

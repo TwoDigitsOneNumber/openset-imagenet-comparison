@@ -370,7 +370,7 @@ def worker(cfg):
     logger.info("Feature extraction on training data:")
 
     # extracting arrays for training data
-    gt, logits, features, scores = get_arrays(
+    gt, logits, features, scores, angles = get_arrays(
             model=model,
             loader=train_loader,
             garbage=cfg.loss.type=="garbage",

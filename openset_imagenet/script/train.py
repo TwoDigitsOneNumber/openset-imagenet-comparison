@@ -20,8 +20,8 @@ def get_args(command_line_options = None):
     parser.add_argument(
         "protocol",
         type=int,
-        choices = (1,2,3),
-        help="Open set protocol: 1, 2 or 3"
+        choices = (1,2,3,0,10),
+        help="Open set protocol: 1, 2 or 3. Set 0 for toy data (K=C), 10 for K=2."
     )
     parser.add_argument(
         "--gpu", "-g",

@@ -27,25 +27,31 @@ def command_line_options(command_line_arguments=None):
     parser.add_argument(
         "--protocols", "-p",
         type=int,
-        choices = (1,2,3),
+        choices = (0,1,2,3,10),
         nargs="+",
-        default = (3,1,2),
-        help="Select the protocols that should be executed"
+        default = (1,2,3),
+        help="Select the protocols that should be executed, 0 is the toy data with deep feature dim K=C, 10 is for toy data with K=2 (EMNIST splits 'mnist' and 'digits')."
     )
     parser.add_argument(
-      "--loss-functions", "-l",
-      nargs = "+",
-      # TODO laurin: add loss functions
-      choices = ('entropic', 'softmax', 'garbage'),
-      default = ('entropic', 'softmax', 'garbage'),
-      help = "Select the loss functions that should be evaluated"
-      )
-
+		"--loss-functions", "-l",
+		nargs = "+",
+		choices = (
+			'softmax', 'entropic', 'garbage', 'objectosphere',  	# benchmarks
+			'sphereface', 'cosface', 'arcface',  					# face losses (HFN)
+			'norm_sfn', 'cosface_sfn', 'arcface_sfn',  		# face losses (SFN)
+			'softmax_os', 'cos_os', 'arc_os',  						# margin-OS (SFN)
+			'norm_eos', 'cos_eos', 'arc_eos',  						# margin-EOS (HFN)
+			'cos_eos_sfn', 'arc_eos_sfn',     						# margin-EOS (SFN)
+      'cos_os_non_symmetric', 'arc_os_non_symmetric', 'sm_softmax'
+		),
+		default = ('entropic', 'softmax', 'garbage'),
+		help = "Select the loss functions that should be evaluated"
+	)
     parser.add_argument(
-      "--algorithms", "-a",
-      nargs = "+",
-      choices = ('threshold', 'evm', 'openmax', 'proser'),
-      default = ('threshold', 'evm', 'openmax', 'proser')
+		"--algorithms", "-a",
+		nargs = "+",
+		choices = ('threshold', 'evm', 'openmax', 'proser'),
+		default = ('threshold')
     )
     parser.add_argument(
         "--output-directory", "-o",
@@ -104,7 +110,8 @@ def commands(args):
         os.makedirs(outdir, exist_ok=True)
         open(config_file, "w").write(config.dump())
 
-        call = ["train_imagenet.py", config_file, str(protocol), "--nice", str(args.nice)]
+        call = [f"train_imagenet.py", config_file, str(protocol), "--nice", str(args.nice)]
+
         if args.gpus is not None:
           call += ["--gpu", str(args.gpus[gpu])]
           processes[gpu].append(call)

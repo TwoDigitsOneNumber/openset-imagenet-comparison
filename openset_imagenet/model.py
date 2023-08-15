@@ -1,41 +1,66 @@
 """ ResNet50, parts taken from VAST: https://github.com/Vastlab/vast/tree/main/vast/architectures"""
 from torchvision import models
 from torch.nn.parallel import DistributedDataParallel
+import torch.nn.functional as F
 import torch
 from torch import nn
 import random
 import numpy as np
 import pathlib
 import vast
+from .logits_variants import set_logits
 
 class ResNet50(nn.Module):
     """Represents a ResNet50 model"""
 
-    def __init__(self, fc_layer_dim=1000):
+    def __init__(self, protocol, loss_type, fc_layer_dim=1000, out_features=1000, logit_bias=True):
         """ Builds a ResNet model, with deep features and logits layers.
 
         Args:
+            loss_type(str): name of loss used, determines type of logits to compute.
             fc_layer_dim(int): Deep features dimension.
         """
         super(ResNet50, self).__init__()
+
+        self.number_of_classes = out_features
+        self.loss_type = loss_type
 
         # Change the dimension of out features
         self.resnet_base = models.resnet50(pretrained=False)
         fc_in_features = self.resnet_base.fc.in_features
         self.resnet_base.fc = nn.Linear(in_features=fc_in_features, out_features=fc_layer_dim)
 
+        self.logits, self.logit_type = set_logits(
+            protocol=protocol,
+            loss_type=self.loss_type,
+            in_features=fc_layer_dim,
+            out_features=out_features,
+            logit_bias=False
+        )
 
-    def forward(self, image):
+
+    def forward(self, image, labels, return_angles=False):
         """ Forward pass
 
         Args:
             image(tensor): Tensor with input samples
+            labels(tensor): Labels for the input samples (needed for margin computation in 'face losses')
+            return_angles(bool): set true to return angles of input data (i.e. its deep feature) and all class centers.
 
         Returns:
             Deep features of the samples.
         """
-        features = self.resnet_base(image)
-        return features
+        deep_features = self.resnet_base(image)
+        logits = self.logits(deep_features, labels)
+
+        if return_angles:
+            # compute angles
+            with torch.no_grad():
+                cos_theta = F.normalize(deep_features, dim=1).mm(F.normalize(self.logits.w, dim=0))
+                angles = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
+            return logits, deep_features, angles
+        else:
+            return logits, deep_features
 
 
 class ResNet50Proser(nn.Module):
@@ -102,6 +127,79 @@ class ResNet50Proser(nn.Module):
         """Extracts the logits, the dummy classiifers and the deep features for the given input """
         intermediate_features = self.first_blocks(image)
         return self.last_blocks(intermediate_features)
+
+
+class LeNetBottleneck(nn.Module):
+    """ Builds a LeNet model with deep features and logits, which includes a bottleneck in the deep features (deep_feature_dim). 
+
+    parameters: see ResNet50 in this file.
+    """
+
+    def __init__(self, protocol, loss_type, deep_feature_dim=2, out_features=10, logit_bias=True):
+        super(LeNetBottleneck, self).__init__()
+
+        self.number_of_classes = out_features
+        self.deep_feature_dim = deep_feature_dim
+        self.loss_type = loss_type
+
+        self.feature_extractor = nn.Sequential(            
+            # 28x28 -> 14x14
+            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=5, stride=1, padding='same'),
+            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=5, stride=1, padding='same'),
+            nn.BatchNorm2d(num_features=32),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
+            # 14x14 -> 7x7
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=5, stride=1, padding='same'),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=5, stride=1, padding='same'),
+            nn.BatchNorm2d(num_features=64),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
+            # 7x7 -> 3x3
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=5, stride=1, padding='same'),
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=5, stride=1, padding='same'),
+            nn.BatchNorm2d(num_features=128),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+
+        self.deep_feature_extractor = nn.Sequential(
+            nn.Linear(128*3*3, self.deep_feature_dim)
+        )
+
+        self.logits, self.logit_type = set_logits(
+            protocol=protocol,
+            loss_type=self.loss_type,
+            in_features=self.deep_feature_dim,
+            out_features=self.number_of_classes,
+            logit_bias=False
+        )
+
+
+    def forward(self, image, labels, return_angles=False):
+        """ Forward pass
+
+        Args:
+            image(tensor): Tensor with input samples
+            labels(tensor): Labels for the input samples (needed for margin computation in 'face losses')
+            return_angles(bool): set true to return angles of input data (i.e. its deep feature) and all class centers.
+
+        Returns:
+            Logits and deep features of the samples.
+        """
+        x = self.feature_extractor(image)
+        x = torch.flatten(x, 1)
+        deep_features = self.deep_feature_extractor(x)
+        logits = self.logits(deep_features, labels)
+
+        if return_angles:
+            # compute angles
+            with torch.no_grad():
+                cos_theta = F.normalize(deep_features, dim=1).mm(F.normalize(self.logits.w, dim=0))
+                angles = torch.acos(cos_theta.clamp(-1.+1e-5, 1.-1e-5))
+            return logits, deep_features, angles
+        else:
+            return logits, deep_features
+
 
 def set_seeds(seed):
     """ Sets the seed for different sources of randomness.
